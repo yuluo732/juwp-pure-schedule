@@ -177,6 +177,15 @@ private fun AppRoot(viewModel: ScheduleViewModel, state: ScheduleUiState) {
     // 「回到本周」悬浮条信息由周课表页上报，与轻提示统一在底部容器里排布
     var pillInfo by remember { mutableStateOf<TimetablePillInfo?>(null) }
 
+    // 全局壁纸层提到 AppRoot：**启动页也要铺在壁纸上**。
+    // 早前它在 MainScaffold 里面，于是启动时先是「启动页 + 黑底」、等壁纸解码完
+    // 才变成「主界面 + 壁纸」—— 用户看到的就是「图二→图三」那一闪。
+    // 提到这里之后，从第一帧起背景就一致，只会有一次「启动页 → 内容」的过渡。
+    WithBackgroundImage(
+        path = state.backgroundImagePath,
+        version = state.backgroundImageVersion,
+        highRes = state.backgroundHd,
+    ) {
     Box(Modifier.fillMaxSize()) {
         when {
             state.booting -> BootSplash()
@@ -282,6 +291,7 @@ private fun AppRoot(viewModel: ScheduleViewModel, state: ScheduleUiState) {
             }
         }
     }
+    }
 }
 
 // ------------------------------------------------------------------ 主界面
@@ -298,19 +308,14 @@ private fun MainScaffold(
     // rememberSaveable：进程被回收再回来时不会莫名丢掉这一页
     var showAbout by rememberSaveable { mutableStateOf(false) }
 
-    WithBackgroundImage(
-        path = state.backgroundImagePath,
-        version = state.backgroundImageVersion,
-        highRes = state.backgroundHd,
-    ) {
-        // ⚠️ 关于页与主界面必须 **if/else 二选一**，不能把关于页叠在设置页上面。
-        //    AboutScreen 的容器是透明的（要露出全局壁纸，与其他页面一致），
-        //    叠上去会让设置页的文字从半透明卡片后面透出来 —— 实测截图里能读到
-        //    「清空所有数据」「退出登录」等字样，像渲染坏了。
-        //    二选一之后，关于页底下就只剩 WithBackgroundImage 画的那一层，与其它页完全一致。
-        if (showAbout) {
-            AboutScreen(onBack = { showAbout = false })
-        } else {
+    // 全局壁纸层已提到 AppRoot（见那里的注释）。
+    // ⚠️ 关于页与主界面必须 **if/else 二选一**，不能把关于页叠在设置页上面。
+    //    AboutScreen 的容器是透明的（要露出全局壁纸，与其他页面一致），
+    //    叠上去会让设置页的文字从半透明卡片后面透出来 —— 实测截图里能读到
+    //    「清空所有数据」「退出登录」等字样，像渲染坏了。
+    if (showAbout) {
+        AboutScreen(onBack = { showAbout = false })
+    } else {
         Scaffold(
             containerColor = Color.Transparent,
             // ⚠️ 透明容器会让 contentColorFor 匹配失败、回退到 Compose 默认的黑色文字，
@@ -324,7 +329,14 @@ private fun MainScaffold(
                     MainTab.entries.forEach { item ->
                         NavigationBarItem(
                             selected = item == tab,
-                            onClick = { tabName = item.name },
+                            onClick = {
+                                tabName = item.name
+                                // 「回到本周」气泡是周课表页**上报**给根布局的。
+                                // 切页时周课表要等 AnimatedContent 的退场动画跑完才 dispose，
+                                // 它的 onDispose 才把气泡清掉 —— 表现就是「页面已经切完了，
+                                // 气泡还挂一会儿」（用户反馈）。所以在点击的这一刻就清掉。
+                                if (item != MainTab.Timetable) onTimetablePill(null)
+                            },
                             icon = { Icon(item.icon, contentDescription = item.label) },
                             label = { Text(item.label) },
                             colors = NavigationBarItemDefaults.colors(
@@ -396,13 +408,13 @@ private fun MainScaffold(
                             onLogout = { viewModel.logout() },
                             onClearAll = { viewModel.clearAll() },
                             onOpenAbout = { showAbout = true },
+                            onSwipeToTimetable = { tabName = MainTab.Timetable.name },
                         )
                     }
                 }
             }
         }
         }   // ← 结束 else（关于页 / 主界面二选一）
-    }
 }
 
 /**

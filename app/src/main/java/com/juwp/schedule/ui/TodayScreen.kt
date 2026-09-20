@@ -131,6 +131,8 @@ fun TodayScreen(
     Column(
         Modifier
             .fillMaxSize()
+            // 今日是第 0 个 tab：向左滑动（内容往左走）切到第 1 个 tab「周课表」
+            .swipeToAdjacentTab(onSwipeLeft = onOpenTimetable)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
     ) {
@@ -152,7 +154,10 @@ fun TodayScreen(
         Spacer(Modifier.height(16.dp))
 
         Text(
-            text = "今日课程 · ${blocks.size} 节",
+            // ⚠️ 统计的是**课程门数**，不是时段数：同一时段并存两门课（重修冲突）时要算 2 节。
+            //    用 blocks.size 会少算 —— 实测「有两个卡片、其中一张带 +1」时显示成 2 节，
+            //    用户指出应该是 3 节。
+            text = "今日课程 · ${blocks.sumOf { it.courses.size }} 节",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -268,6 +273,7 @@ private fun TodayCourseCard(block: TodayBlock, onClick: () -> Unit) {
         // 浅色：纯白卡片（surface = #FFFFFF），与柔和的 #F5F5F5 全局背景形成层级对比
         MaterialTheme.colorScheme.surface.copy(alpha = 0.86f)
     }
+    val hidden = block.courses.size - 1
     Surface(
         color = cardColor,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -276,8 +282,9 @@ private fun TodayCourseCard(block: TodayBlock, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick),
     ) {
-        // 外层 Box 只为了让「+N」角标能贴在卡片右上角（Surface 的 content 不是 BoxScope）
-        Box(Modifier.fillMaxWidth()) {
+        // 外层 Box 只为了让「+N」角标能贴到卡片**右上角**
+        // （Surface 的 content 不是 BoxScope，拿不到 Alignment.TopEnd）
+        Box {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -309,7 +316,7 @@ private fun TodayCourseCard(block: TodayBlock, onClick: () -> Unit) {
 
             Spacer(Modifier.width(14.dp))
 
-            // 右侧课程信息
+            // 中间课程信息
             Column(Modifier.weight(1f)) {
                 Text(
                     text = block.course.name,
@@ -319,9 +326,6 @@ private fun TodayCourseCard(block: TodayBlock, onClick: () -> Unit) {
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                // 同时间段还有别的课（重修课与主课冲突）时，只在卡片**右上角**放一个
-                // 正圆「+N」角标，不在卡片正文里插任何提示文字（用户明确要求）。
-                // 课程名之后直接是教师/地点，信息密度不变。
                 Spacer(Modifier.height(3.dp))
                 InfoLine(
                     icon = { Icon(Icons.Filled.Person, null, Modifier.size(13.dp), MaterialTheme.colorScheme.onSurfaceVariant) },
@@ -336,8 +340,7 @@ private fun TodayCourseCard(block: TodayBlock, onClick: () -> Unit) {
                 )
             }
 
-            // 节次标签：用课程主题色的浅色变体做底 + 同色文字，
-            // 在白色卡片上立刻凸显（之前用 surfaceVariant 与卡片底色融为一体）
+            // 右侧：节次标签（「+N」角标已挪到卡片右上角，见下方）
             if (block.periodLabel.isNotBlank()) {
                 Surface(
                     color = courseColor.copy(alpha = if (isDark) 0.26f else 0.18f),
@@ -354,35 +357,37 @@ private fun TodayCourseCard(block: TodayBlock, onClick: () -> Unit) {
             }
         }
 
-        // 同时段还有别的课时的「+N」角标：贴卡片右上角、**正圆**（用户明确要求不要椭圆）。
-        // size 写死，不随文字宽度变化。
-        val hidden = block.courses.size - 1
+        // 「+N」角标：贴卡片**右上角**，上下左右的留白都用卡片自身的 14dp 内边距，
+        // 这样它与卡片边缘的间隔和内容区完全一致（用户要求「与卡片深色背景的右边距间隔一致」）。
+        // 之前它被塞在右侧那一列的顶部、跟随列垂直居中，位置偏低。
         if (hidden > 0) {
-            Box(
-                Modifier
+            // 样式对齐「第X节」气泡：半透明同色系、同圆角，只收窄内边距（它只有两个字）
+            Surface(
+                color = courseColor.copy(alpha = if (isDark) 0.26f else 0.18f),
+                contentColor = if (isDark) courseColor.lighten(0.3f) else courseColor,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 8.dp, end = 10.dp)
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(courseColor.copy(alpha = if (isDark) 0.30f else 0.16f)),
-                contentAlignment = Alignment.Center,
+                    .padding(top = CARD_PADDING, end = CARD_PADDING),
             ) {
                 Text(
                     text = "+$hidden",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 9.sp,
-                        lineHeight = 9.sp,
+                        fontSize = 10.sp,
+                        lineHeight = 10.sp,
                         platformStyle = PlatformTextStyle(includeFontPadding = false),
                     ),
-                    fontWeight = FontWeight.Bold,
-                    color = if (isDark) courseColor.lighten(0.3f) else courseColor,
-                    maxLines = 1,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
                 )
             }
         }
         }
     }
 }
+
+/** 今日页课程卡片的内边距；角标也用它，保证与卡片边缘的间隔一致 */
+private val CARD_PADDING = 14.dp
 
 @Composable
 private fun InfoLine(icon: @Composable () -> Unit, text: String, maxLines: Int = 1) {

@@ -3,6 +3,9 @@ package com.juwp.schedule.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,33 +13,34 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -49,12 +53,11 @@ import com.juwp.schedule.R
  *
  * 为什么单独开一页而不是留在设置页里：设置页那一屏已经很长（账号 / 学期 / 开学日期 /
  * 课表更新 / 个性化 / 上课提醒 / 账号与数据），说明文字挤在末尾既不好读也不好找。
- * 拆出来之后设置页只留一行入口，说明与链接都能铺开写。
  *
- * 背景沿用全局壁纸（由 MainScaffold 的 WithBackgroundImage 提供），
- * 所以这里容器保持透明，卡片用与设置页相同的 80% 不透明表面色。
+ * ⚠️ 本页与主界面是 `if/else` **二选一**（见 MainActivity.MainScaffold），不是叠加 ——
+ * 本项目所有页面容器都是透明的（要露出全局壁纸），叠加会让下层文字透出来。
+ * 因此「划入动画」也只能是本页**自己**从右侧滑进来，而不是两页交叉滑动。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -63,94 +66,125 @@ fun AboutScreen(onBack: () -> Unit) {
     // 系统返回键 / 手势返回：先关本页，而不是直接把 App 退出到桌面
     BackHandler(onBack = onBack)
 
+    // 划入动画：1 = 完全在屏幕右侧之外，0 = 就位。
+    // 用 graphicsLayer 的 translationX（里面能拿到 size.width，不必自己算屏宽）。
+    val progress = remember { Animatable(1f) }
+    LaunchedEffect(Unit) {
+        progress.animateTo(0f, tween(durationMillis = SLIDE_IN_MS, easing = FastOutSlowInEasing))
+    }
+
     Scaffold(
+        // ⚠️ 透明容器 + 显式 contentColor：透明会让 contentColorFor 匹配失败、回退成黑字
         containerColor = Color.Transparent,
-        // ⚠️ 透明容器会让 contentColorFor 匹配失败、回退成黑色文字，必须显式给 contentColor
         contentColor = MaterialTheme.colorScheme.onSurface,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "关于",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-            )
-        },
+        // 与设置页一样清零 —— inset 只由最外层 MainScaffold 处理，否则就是「大上巴」
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
+                .graphicsLayer { translationX = progress.value * size.width },
         ) {
-            Spacer(Modifier.height(4.dp))
+            AboutHeader(onBack = onBack)
 
-            AppIdentityCard(version = version)
-
-            Spacer(Modifier.height(14.dp))
-
-            SectionCard(
-                title = "说明",
-                subtitle = "数据从哪来、存在哪、什么情况下连不上",
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
             ) {
-                BodyText(
-                    "数据来自学校教务系统，登录走学校统一身份认证（CAS + SSO）。" +
-                        "本 App 没有服务器，账号与课表只保存在你自己手机里，不会上传到任何其他地方。"
-                )
-                Spacer(Modifier.height(8.dp))
-                BodyText(
-                    "教务系统公网可直接访问，校外、假期都能正常同步；" +
-                        "开着代理软件（如 Clash 的 TUN 模式）时可能连不上，关掉即可。"
-                )
-                Spacer(Modifier.height(8.dp))
-                BodyText(
-                    "本 App 只适配江西水利电力大学的教务系统，其他学校的账号无法登录。"
-                )
+                AppIdentityCard(version = version)
+
+                Spacer(Modifier.height(14.dp))
+
+                SectionCard("说明") {
+                    BodyText("本项目已在 GitHub 上开源，源码、使用说明与问题反馈都在仓库里。")
+                    Spacer(Modifier.height(8.dp))
+                    BodyText(
+                        "数据来自学校教务系统，登录走学校统一身份认证（CAS + SSO）。" +
+                            "本 App 没有服务器，账号与课表只保存在你自己手机里，" +
+                            "不会上传到任何其他地方。"
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    BodyText(
+                        "教务系统公网可直接访问，校外、假期都能正常同步；" +
+                            "开着代理软件（如 Clash 的 TUN 模式）时可能连不上，关掉即可。"
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    BodyText("本 App 只适配江西水利电力大学的教务系统，其他学校的账号无法登录。")
+                    Spacer(Modifier.height(8.dp))
+                    BodyText(
+                        "本项目为非官方工具，与江西水利电力大学无隶属关系。" +
+                            "使用时请遵守学校相关规定。"
+                    )
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // 链接只有一行，不再套「链接」标题卡片（用户要求去掉 title/subtitle）
+                Surface(
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        LinkRow(
+                            iconRes = R.drawable.ic_github_invertocat,
+                            title = "GitHub 仓库",
+                            onClick = { openUrl(context, REPO_URL) },
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                SectionCard("开源协议") {
+                    BodyText("MIT License © 2026 Pure Schedule contributors")
+                }
+
+                Spacer(Modifier.height(24.dp))
             }
-
-            Spacer(Modifier.height(14.dp))
-
-            SectionCard(
-                title = "链接",
-                subtitle = "源码、使用说明与问题反馈都在仓库里",
-            ) {
-                LinkRow(
-                    iconRes = R.drawable.ic_github_invertocat,
-                    // GitHub 官方 Invertocat 是白色填充，必须配深色圆底才可见；
-                    // #24292F 是 GitHub 自己的深色，浅色/深色模式下都能读出白色标志
-                    iconTileColor = GITHUB_TILE,
-                    title = "GitHub 仓库",
-                    subtitle = REPO_LABEL,
-                    onClick = { openUrl(context, REPO_URL) },
-                )
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            SectionCard(title = "开源许可") {
-                BodyText("MIT License © 2026 Pure Schedule contributors")
-                Spacer(Modifier.height(8.dp))
-                BodyText(
-                    "本项目为非官方工具，与江西水利电力大学无隶属关系。" +
-                        "使用时请遵守学校相关规定。"
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+// ------------------------------------------------------------------ 标题
+
+/**
+ * 标题行：左侧返回箭头 + 「关于」。
+ *
+ * ⚠️ 纵向位置要和设置页的「设置」标题对齐。设置页那边是
+ * `Text(titleLarge).padding(top = 10.dp, bottom = 16.dp)`，而它的状态栏 inset 由
+ * **外层 MainScaffold 的 Scaffold** 提供；关于页是 `if/else` 里替换掉那个 Scaffold 的，
+ * 拿不到外层 inset —— 实测标题会顶到 y=43（设置页在 y=168），整整高了 125px。
+ * 所以这里自己加 [statusBarsPadding]，再把 top 调到 2dp：
+ * `状态栏 + 2dp + 行高40dp/2 = 文字中心`，与设置页的 `状态栏 + 10dp + 14dp` 对齐。
+ */
+@Composable
+private fun AboutHeader(onBack: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(start = 8.dp, end = 20.dp, top = 2.dp, bottom = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回",
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = "关于",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
@@ -213,15 +247,16 @@ private fun AppIdentityCard(version: String) {
 // ------------------------------------------------------------------ 链接行
 
 /**
- * 带图标的一行链接：左侧圆形图标底 + 标题/副标题 + 右侧「在外部打开」箭头。
- * 样式对齐系统中「去 XX 下载」那类跳转项。
+ * 带图标的一行链接：图标 + 标题 + 右侧「在外部打开」箭头。
+ *
+ * ⚠️ 图标不再套深色圆底（用户要求去掉那个黑环）。但 Invertocat 矢量图是**白色填充**，
+ * 直接放在浅色卡片上会看不见 —— 所以改用 [Icon] 的 tint 染色：
+ * Icon 会拿源图的 alpha 当遮罩、用 tint 重新上色，于是它自动跟随明暗模式。
  */
 @Composable
 private fun LinkRow(
     iconRes: Int,
-    iconTileColor: Color,
     title: String,
-    subtitle: String,
     onClick: () -> Unit,
 ) {
     Row(
@@ -229,38 +264,24 @@ private fun LinkRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(iconTileColor),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-            )
-        }
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(26.dp),
+        )
 
         Spacer(Modifier.width(14.dp))
 
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-            )
-            Spacer(Modifier.height(1.dp))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+        )
 
         Icon(
             imageVector = Icons.AutoMirrored.Filled.OpenInNew,
@@ -297,10 +318,9 @@ private fun openUrl(context: android.content.Context, url: String) {
 
 /** 仓库地址（仓库已从 pure-schedule 改名为 juwp-pure-schedule） */
 private const val REPO_URL = "https://github.com/yuluo732/juwp-pure-schedule"
-private const val REPO_LABEL = "yuluo732/juwp-pure-schedule"
 
-/** GitHub 深色：#24292F，与白色 Invertocat 搭配在明暗两种模式下都清晰 */
-private val GITHUB_TILE = Color(0xFF24292F)
+/** 划入动画时长，与底部导航切页的 220ms 保持一致 */
+private const val SLIDE_IN_MS = 220
 
 /** 应用图标白底方块的边长 */
 private val APP_ICON_TILE = 56.dp

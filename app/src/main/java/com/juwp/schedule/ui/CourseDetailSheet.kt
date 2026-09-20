@@ -47,17 +47,25 @@ import com.juwp.schedule.ui.theme.colorForCourse
  *   `2025-2026-2` 周一第一二节的「高等数学B(下)」与「马克思主义基本原理」）
  *   课表上只画第一门、右上角标「+N」，点开就把这几门**逐门列全**，
  *   学生不会因为行高被压掉而漏看一门课。
+ * @param courseColors 课程名 → 卡片主色。**周课表点进来时必须传它算好的那一份**
+ *   （`courseColorLayout` + `assignDistinctCourseColors`），否则本页会退回按课名哈希取色，
+ *   与卡片那套「按网格位置贪心分配」的结果对不上 —— 实测用户反馈
+ *   「国际商法的详情页图标与标题颜色跟卡片颜色不一致」。
+ *   今日页不传：它自己的卡片本来就用哈希色，两边一致。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CourseDetailSheet(
     courses: List<CourseArrangement>,
     onDismiss: () -> Unit,
+    courseColors: Map<String, Color> = emptyMap(),
 ) {
     val first = courses.firstOrNull() ?: return
     val multiple = courses.size > 1
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val baseColor = colorForCourse(first.name)
+    // 优先用调用方传进来的（与卡片一致），没有才退回哈希取色
+    fun colorOf(name: String): Color = courseColors[name] ?: colorForCourse(name)
+    val baseColor = colorOf(first.name)
     // 详情弹层最大高度 = 屏幕的 60%，保持「半屏卡片」观感而不是全屏页
     val configuration = LocalConfiguration.current
     val maxSheetHeight = (configuration.screenHeightDp * 0.6f).dp
@@ -128,7 +136,7 @@ fun CourseDetailSheet(
                         text = "${index + 1}. ${course.name}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = colorForCourse(course.name),
+                        color = colorOf(course.name),
                     )
                     Spacer(Modifier.height(4.dp))
                 }

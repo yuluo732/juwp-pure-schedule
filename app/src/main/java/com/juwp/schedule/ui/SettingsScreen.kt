@@ -80,7 +80,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.juwp.schedule.BuildConfig
 import com.juwp.schedule.ui.theme.AppThemeMode
 import com.juwp.schedule.ui.theme.ThemeColorPresets
 import java.time.Instant
@@ -200,6 +199,8 @@ fun SettingsScreen(
     onClearAll: () -> Unit,
     /** 打开「关于」二级页面（说明、版本号、GitHub 仓库入口都在那一页） */
     onOpenAbout: () -> Unit,
+    /** 在设置页向右滑动时切到「周课表」（设置是第 2 个 tab，右滑到第 1 个） */
+    onSwipeToTimetable: () -> Unit,
 ) {
     val context = LocalContext.current
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -223,6 +224,8 @@ fun SettingsScreen(
         // 内层 Scaffold 再处理一次 + 标题再 statusBarsPadding 就是三重下移。
         // 这里清零 contentWindowInsets，inset 只由最外层负责
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        // 设置是第 2 个 tab：向右滑动（内容往右走）切到第 1 个 tab「周课表」
+        modifier = Modifier.swipeToAdjacentTab(onSwipeRight = onSwipeToTimetable),
     ) { padding ->
         Column(
             Modifier
@@ -789,33 +792,29 @@ fun SettingsScreen(
             }
 
             // ------------------------------------------------ 关于
-            // 说明文字、版本号、GitHub 仓库入口都移到二级页面 AboutScreen 了：
-            // 这一屏本来就很长（账号/学期/开学日期/课表更新/个性化/上课提醒/账号与数据），
-            // 说明挤在末尾既不好读也不好找，所以这里只留一行入口。
-            SectionCard("关于") {
+            // 说明文字、版本号、GitHub 仓库入口都在二级页面 AboutScreen 里。
+            // 这里只留一张卡、一行「关于」—— 用户要求不要卡片标题，
+            // 否则「关于」两个字会在标题和行文字里各出现一次。
+            Surface(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .clickable(onClick = onOpenAbout)
-                        .padding(vertical = 6.dp),
+                        .padding(horizontal = 16.dp, vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "关于极简课程表",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            // 版本号取自 BuildConfig，不再手写字符串 —— 之前写死 v1.5.0，
-                            // 发 v1.5.1 时忘了改就会显示错版本
-                            "v${BuildConfig.VERSION_NAME} · 说明与 GitHub 仓库",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Text(
+                        text = "关于",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f),
+                    )
                     Icon(
                         Icons.Filled.ChevronRight,
                         contentDescription = null,

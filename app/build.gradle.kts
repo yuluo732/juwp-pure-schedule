@@ -32,7 +32,9 @@ android {
         applicationId = "com.juwp.schedule"
         minSdk = 26
         targetSdk = 36
-        versionCode = 33
+        // preview 构建：应用内版本仍显示 1.5.2（用户要求未发版前不改版本号），
+        // versionCode 递增只为让覆盖安装被识别为升级
+        versionCode = 34
         versionName = "1.5.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

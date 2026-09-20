@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -210,10 +209,13 @@ fun rememberRowHeights(schedule: SemesterSchedule, textWidth: Dp, ownGrade: Stri
                     val lineCount = lines(c.name, 8) +
                         lines(formatRoomForChip(c.room), 4) +
                         lines(formatTeachersForChip(c.teachers), 3)
+                    // 一格多课时卡片顶部要给「+N」角标留位置（与 CourseChip 里的
+                    // padding(top = BADGE_RESERVE) 必须一致，否则内容会被挤掉一截）
+                    val badgeReserve = if (cells.size > 1) BADGE_RESERVE else 0.dp
                     // 跨行课程的总需求**分摊**到它覆盖的每一行：
                     // sum(覆盖行的行高) 才够放下 height = rowHeight × span 的卡片
                     val span = shown.rowSpan.coerceAtLeast(1)
-                    val demand = (lineHeight * lineCount + chipExtra) / span
+                    val demand = (lineHeight * lineCount + chipExtra + badgeReserve) / span
                     if (demand > perRow[rowIndex]) perRow[rowIndex] = demand
                 }
             }
@@ -320,15 +322,7 @@ fun TimetableWeekGrid(
         if (courseColors.isNotEmpty()) {
             courseColors
         } else {
-            assignDistinctCourseColors(
-                buildList {
-                    schedule.cells.forEach { cell ->
-                        cell.course.weeks.forEach { w ->
-                            add(Triple(Triple(w, cell.weekday, cell.periodRowIndex), 0, cell.course.name))
-                        }
-                    }
-                }
-            )
+            assignDistinctCourseColors(courseColorLayout(schedule))
         }
     }
 
@@ -518,7 +512,11 @@ private fun CourseChip(
     ) {
         Column(
             // fillMaxSize：文本容器严格撑满整张卡片（宽度 100%，不给右侧留死空白）
-            Modifier.fillMaxSize(),
+            // 有「+N」角标时顶部预留一段，保证角标不压到课程名第一行
+            // （用户要求「注意与文字的间隔」）。预留量同步计入了 rememberRowHeights。
+            Modifier
+                .fillMaxSize()
+                .padding(top = if (hiddenCount > 0) BADGE_RESERVE else 0.dp),
             // 内容垂直居中：整体看起来居中不贴顶
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.Start,
@@ -566,18 +564,20 @@ private fun CourseChip(
 
         // 同周并存多门课时的「+N」角标：画在最后（后画的在上层），贴卡片右上角。
         //
-        // ⚠️ 用户明确要求：**正圆**，不要椭圆/胶囊（早期用 RoundedCornerShape(50)
-        //    配横向 padding，会随文字宽度拉成椭圆）。所以这里固定 size，
-        //    字号单独压到 9sp 让「+2」也塞得进 18dp 的圆里。
-        // 底色用同色系深色的低透明度，不引入新颜色，保持「配色只有一套」。
+        // 形态：**圆角矩形**，尺寸压到最小（用户要求；早前一度做成正圆，现已改回）。
+        // 配色：**照今日页「第X节」气泡的样子** —— 同色系深色只给 20% 不透明度作底，
+        //       文字用那个深色本身，即「淡玻璃 + 同色字」。
+        //       迭代记录（三轮）：① 16% 透明 + 细字 → 「不明显」；
+        //                       ② 实心深色 → 「太大、太深、有壁纸时不够透明」；
+        //                       ③ 用户给出明确参照物：今日页的节次气泡 → 就是现在这版。
+        // 间隔：内容 Column 顶部预留 BADGE_RESERVE，课程名第一行不会被角标压住。
         if (hiddenCount > 0) {
             Box(
                 Modifier
                     .align(Alignment.TopEnd)
-                    .size(BADGE_SIZE)
-                    .clip(CircleShape)
-                    .background(textColor.copy(alpha = 0.18f)),
-                contentAlignment = Alignment.Center,
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(textColor.copy(alpha = 0.20f))
+                    .padding(horizontal = 4.dp),
             ) {
                 Text(
                     text = "+$hiddenCount",
@@ -586,7 +586,7 @@ private fun CourseChip(
                         lineHeight = 9.sp,
                         platformStyle = PlatformTextStyle(includeFontPadding = false),
                     ),
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = textColor,
                     maxLines = 1,
                 )
@@ -595,8 +595,31 @@ private fun CourseChip(
     }
 }
 
-/** 「+N」角标的直径：正圆，边长写死，不随文字宽度变化 */
-private val BADGE_SIZE = 18.dp
+/**
+ * 「+N」角标占用的高度：内容顶部预留这么多，保证角标与课程名之间有间隔。
+ * ⚠️ rememberRowHeights 里也必须加上同样的预留，否则行高只按文字算，
+ *    内容会被挤掉一截（与「maxLines 必须和行高对齐」是同一个道理）。
+ */
+private val BADGE_RESERVE = 16.dp
 
 // 节次列收窄：把宽度让给课程卡片（用户反馈 58dp 太宽）；公开给外层做固定列
 val TIME_COLUMN_WIDTH = 46.dp
+
+/**
+ * 把整学期的课表网格摊平成 [assignDistinctCourseColors] 需要的输入。
+ *
+ * ⚠️ 抽成公开函数是为了让**课程详情弹层**能拿到和周课表**完全同一套**配色：
+ *    之前详情页用 `colorForCourse(课名)`（按名字哈希）取色，而卡片用的是
+ *    「按网格位置贪心分配」，两套算法必然对不上 —— 用户实测反馈
+ *    「国际商法的详情页图标/标题颜色与卡片颜色不一致」。
+ *    现在两边都走这个 layout → 同一份 Map，颜色必然一致。
+ */
+fun courseColorLayout(
+    schedule: SemesterSchedule,
+): List<Triple<Triple<Int, Int, Int>, Int, String>> = buildList {
+    schedule.cells.forEach { cell ->
+        cell.course.weeks.forEach { w ->
+            add(Triple(Triple(w, cell.weekday, cell.periodRowIndex), 0, cell.course.name))
+        }
+    }
+}

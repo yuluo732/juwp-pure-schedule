@@ -68,7 +68,8 @@
     <!-- 提醒通知 -->
     <string name="reminder_channel_name">上课提醒</string>
     <string name="reminder_channel_desc">上课前提醒你即将开始的课程</string>
-    <string name="reminder_title_format">上课提醒：%1$s</string>
+    <!-- 通知标题就是课程名本身（用户要求去掉「上课提醒：」前缀，通知栏里更清爽） -->
+    <string name="reminder_title_format">%1$s</string>
 
     <!-- 错误 -->
     <string name="error_empty_account">请输入学号</string>

@@ -59,7 +59,12 @@ data class ScheduleUiState(
     /** 今天：与 todayWeekday/currentWeek 在 recomputeWeek 里用同一个 LocalDate.now() 一起算 */
     val today: LocalDate = LocalDate.now(),
     val currentWeek: Int = 1,
-    val todayWeekday: Int = 1,
+    /**
+     * ⚠️ 默认值必须是**当天的真实星期**，不能写 1（周一）。
+     * 写 1 会让所有「还没算过周次」的中间态都显示成周一，
+     * 启动时表现就是「今天明明是周日，标题却先写周一、随后才跳回来」。
+     */
+    val todayWeekday: Int = WeekCalculator.weekdayOf(LocalDate.now()),
     val termStartMillis: Long = 0L,
     val fromCache: Boolean = false,
     val lastSyncAt: Long = 0L,
@@ -114,8 +119,25 @@ class ScheduleViewModel(app: Application, initial: SplashPrefs? = null) : Androi
 
     private val _state = MutableStateFlow(
         if (initial != null) {
+            // ⚠️ 首帧之前就把「今天 / 星期 / 第几周」算准。
+            //    这几个字段的默认值是 1（周一、第 1 教学周），若留给 bootstrap 之后的
+            //    recomputeWeek 去纠正，主界面会先用错值渲染一帧再跳变 ——
+            //    实测就是启动时「9月20日 周一 / 第 1 教学周」一闪而过。
+            val today = LocalDate.now()
+            val weekday = WeekCalculator.weekdayOf(today)
+            val week = if (initial.termStartMillis > 0) {
+                WeekCalculator.weekOf(
+                    today,
+                    LocalDate.ofEpochDay(initial.termStartMillis / 86_400_000L),
+                )
+            } else {
+                1
+            }
             ScheduleUiState(
-                booting = false,
+                // ⚠️ 必须是 true：课表还没从缓存读出来之前**不能**撤掉启动页，
+                //    否则会先闪一帧「还没有课表数据」空态卡片（实测截图里的图二/图三）。
+                //    bootstrap() 会在拿到缓存（或明确判定没数据）时才把它置回 false。
+                booting = true,
                 loggedIn = initial.loggedIn,
                 themeMode = AppThemeMode.fromRaw(initial.themeMode),
                 themeColorArgb = initial.themeColorArgb,
@@ -125,9 +147,17 @@ class ScheduleViewModel(app: Application, initial: SplashPrefs? = null) : Androi
                 termStartMillis = initial.termStartMillis,
                 selectedTermId = initial.currentTermId,
                 lastSyncAt = initial.lastSyncAt,
+                today = today,
+                todayWeekday = weekday,
+                // weekOf 返回可空（算不出周次时给 null），这里兜底成第 1 周
+                currentWeek = (week ?: 1).coerceAtLeast(1),
             )
         } else {
-            ScheduleUiState()
+            val today = LocalDate.now()
+            ScheduleUiState(
+                today = today,
+                todayWeekday = WeekCalculator.weekdayOf(today),
+            )
         }
     )
     val state: StateFlow<ScheduleUiState> = _state.asStateFlow()

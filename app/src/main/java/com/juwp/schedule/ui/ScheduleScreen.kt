@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.juwp.schedule.data.model.CourseArrangement
 import com.juwp.schedule.data.model.SemesterSchedule
 import com.juwp.schedule.domain.WeekCalculator
+import com.juwp.schedule.ui.theme.assignDistinctCourseColors
 import kotlinx.coroutines.launch
 
 /**
@@ -180,6 +181,13 @@ private fun ScheduleContent(
     var selectedCourses by remember { mutableStateOf<List<CourseArrangement>>(emptyList()) }
     var showWeekPicker by remember { mutableStateOf(false) }
     val displayedWeek = pagerState.currentPage + 1
+
+    // 课程配色：**周课表卡片与课程详情弹层共用同一份**。
+    // 详情页若自己去 colorForCourse(课名) 取色，就会和卡片的
+    // 「按网格位置贪心分配」对不上（实测：国际商法的详情页颜色与卡片不一致）。
+    val courseColors = remember(schedule) {
+        assignDistinctCourseColors(courseColorLayout(schedule))
+    }
 
     // 上报「回到本周」悬浮条状态给根布局：与「同步完成」提示统一放在底部浮层容器里
     // 纵向排列（Toast 永远在胶囊正上方），从结构上杜绝互相遮挡
@@ -331,6 +339,8 @@ private fun ScheduleContent(
                                 // 设置页「课程卡片透明化」开关
                                 translucentCards = state.cardTransparent,
                                 ownGrade = ownGrade,
+                                // 与详情弹层共用同一份配色
+                                courseColors = courseColors,
                             )
                         }
                     }
@@ -340,7 +350,12 @@ private fun ScheduleContent(
     }
 
     if (selectedCourses.isNotEmpty()) {
-        CourseDetailSheet(courses = selectedCourses, onDismiss = { selectedCourses = emptyList() })
+        CourseDetailSheet(
+            courses = selectedCourses,
+            // 传周课表那套配色，保证详情页的颜色与卡片完全一致
+            courseColors = courseColors,
+            onDismiss = { selectedCourses = emptyList() },
+        )
     }
 
     // ---------------- 周次快速跳转弹窗（点顶部「第 X 周」弹出） ----------------
