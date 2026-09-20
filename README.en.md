@@ -94,7 +94,7 @@ A step-by-step guide (in Chinese) is in [`docs/user-guide.md`](docs/user-guide.m
 ## Build
 
 ```bash
-git clone https://github.com/yuluo732/pure-schedule.git
+git clone https://github.com/yuluo732/juwp-pure-schedule.git
 cd pure-schedule
 ./gradlew assembleDebug          # Windows: gradlew.bat assembleDebug
 # output: app/build/outputs/apk/debug/app-debug.apk
