@@ -79,15 +79,18 @@ class ReminderScheduler(
                 val trigger = date.atTime(startTime).minusMinutes(leadMinutes.toLong())
                 if (trigger.isBefore(now)) return@forEachIndexed
 
-                val title = courses.joinToString(" / ") { it.name }
-                val room = courses.mapNotNull { it.room.takeIf { r -> r.isNotBlank() } }
-                    .distinct().joinToString(" ")
+                // ⚠️ 同一时段并存多门课时（重修冲突）必须**一门一条独立通知**。
+                //    早期写法是把课名拼成 "A / B"、再对每门课各排一条闹钟，
+                //    结果两条闹钟带着**同一个标题**，而通知 id = f(标题, 时间)，
+                //    于是后一条把前一条覆盖掉 —— 用户只看到一条挤着两门课的通知。
+                //    现在每门课只带自己的课名/地点/教师，通知 id 用 requestCode
+                //    （里面已经含 courseIndex），两条通知互不覆盖。
                 courses.forEachIndexed { idx, course ->
                     scheduleAlarm(
                         requestCode = requestCodeFor(date, rowIndex, idx),
                         triggerAt = trigger,
-                        title = title,
-                        room = room.ifBlank { course.room },
+                        title = course.name,
+                        room = course.room,
                         teachers = course.teachers,
                         timeText = period.timeRange,
                         leadMinutes = leadMinutes,
@@ -115,6 +118,9 @@ class ReminderScheduler(
             putExtra(EXTRA_TEACHERS, teachers)
             putExtra(EXTRA_TIME, timeText)
             putExtra(EXTRA_LEAD, leadMinutes)
+            // 通知 id 直接用 requestCode（含日期/节次/第几门课），保证同一时段的
+            // 多门课各自占一条通知、互不覆盖
+            putExtra(EXTRA_NOTIFY_ID, requestCode)
             // 记录「本该触发的时间」：系统在某些 ROM 上会把闹钟扣住直到 App 回到前台，
             // 接收器据此判断是否已经过时太久（超过 30 分钟就不再补发，避免一次弹一堆）
             putExtra(EXTRA_TRIGGER_AT, triggerAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli())
@@ -231,6 +237,9 @@ class ReminderScheduler(
         const val EXTRA_TIME = "extra_time"
         const val EXTRA_LEAD = "extra_lead"
         const val EXTRA_TRIGGER_AT = "extra_trigger_at"
+
+        /** 通知 id。用排程时的 requestCode，天然对「同一时段第几门课」唯一 */
+        const val EXTRA_NOTIFY_ID = "extra_notify_id"
 
         private val TIME_REGEX = Regex("""(\d{1,2}):(\d{2})""")
 

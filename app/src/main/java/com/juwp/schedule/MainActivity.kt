@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -62,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -309,13 +311,36 @@ private fun MainScaffold(
     var showAbout by rememberSaveable { mutableStateOf(false) }
 
     // 全局壁纸层已提到 AppRoot（见那里的注释）。
-    // ⚠️ 关于页与主界面必须 **if/else 二选一**，不能把关于页叠在设置页上面。
-    //    AboutScreen 的容器是透明的（要露出全局壁纸，与其他页面一致），
-    //    叠上去会让设置页的文字从半透明卡片后面透出来 —— 实测截图里能读到
-    //    「清空所有数据」「退出登录」等字样，像渲染坏了。
-    if (showAbout) {
-        AboutScreen(onBack = { showAbout = false })
-    } else {
+    //
+    // ⚠️ 关于页与主界面之间必须用「**推入 / 推出**」，不能用「叠一层滑入」。
+    //    本项目页面容器都是透明的（要露出全局壁纸，与其他页面一致），
+    //    如果两页在过渡期间**重叠**，下层设置页的文字会从上层半透明卡片后面透出来
+    //    （实测截图里能读到「清空所有数据」「退出登录」，像渲染坏了）。
+    //    「推入」时两页 x 方向始终**相邻、不重叠**（一页从 0 滑到 -w，另一页从 +w 滑到 0），
+    //    所以既能拿到「设置被向左推出、关于从右推入」的联动动效，又不会互相透。
+    //    返回时方向取反，自然就有滑出动画。
+    //    刻意不加 fade：淡入淡出会让两页短暂半透明，反而破坏「不重叠」这个前提。
+    // 关于页的「推入 / 推出」用手写两层实现，**不用 AnimatedContent**：
+    //  1) AnimatedContent 会在过渡结束后销毁离场页 —— 设置页的滚动位置随之丢失
+    //     （用户反馈：从关于返回后设置页跳回顶部）；
+    //  2) 两层始终相邻、不重叠，所以既能看到「设置被向左推出、关于从右推入」
+    //     的联动动效，又不会出现「下层文字从上层半透明卡片后面透出来」（实测踩过）。
+    val aboutSlide = remember { Animatable(if (showAbout) 1f else 0f) }
+    LaunchedEffect(showAbout) {
+        aboutSlide.animateTo(
+            targetValue = if (showAbout) 1f else 0f,
+            animationSpec = tween(SLIDE_DURATION_MS),
+        )
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        // ---- 图层 1：主界面（设置页在其中）。常驻不销毁，滚动位置原样保留。
+        //     关于页打开时它平移到屏幕左侧之外。
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer { translationX = -aboutSlide.value * size.width },
+        ) {
         Scaffold(
             containerColor = Color.Transparent,
             // ⚠️ 透明容器会让 contentColorFor 匹配失败、回退到 Compose 默认的黑色文字，
@@ -414,7 +439,20 @@ private fun MainScaffold(
                 }
             }
         }
-        }   // ← 结束 else（关于页 / 主界面二选一）
+        }   // ← 结束图层 1（主界面 / 设置页）
+
+        // ---- 图层 2：关于页。完全滑出（slide == 0）后就不再组合它，
+        //      它本身没有需要保留的状态，销毁无害。
+        if (aboutSlide.value > 0f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationX = (1f - aboutSlide.value) * size.width },
+            ) {
+                AboutScreen(onBack = { showAbout = false })
+            }
+        }
+    }   // ← 结束 Box（两个图层）
 }
 
 /**

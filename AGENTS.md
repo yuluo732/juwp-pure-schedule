@@ -189,20 +189,51 @@ val shown = courses.firstOrNull() ?: return@Box   // 空格子：什么都不画
 结果设置页的文字从关于页的半透明卡片后面透出来
 （截图里能读到「清空所有数据」「退出登录」），看起来像渲染坏了。
 
-**正确做法是 `if/else` 二选一**，让二级页面底下只剩 `WithBackgroundImage` 那一层：
+**正确做法是「两层都常驻、只平移」**（既能联动推入、又不重叠、状态还不丢）——
+具体代码见下面「不要用 `AnimatedContent` 做二级页面的推入」那一条。
+`if/else` 二选一也能避免透字，但会丢滚动位置，**已被取代**。
+
+### ❌ 不要用 `AnimatedContent` 做「二级页面」的推入
+
+`AnimatedContent` 在过渡结束后会**销毁离场页**。设置页的滚动位置存在它的
+`rememberScrollState` 里，一销毁就回到顶部 —— 实测用户反馈「从关于返回后设置页跳回顶部」。
+
+正确做法是**手写两层、都常驻**，只平移：
 
 ```kotlin
-) {
-    if (showAbout) {
-        AboutScreen(onBack = { showAbout = false })
-    } else {
-        Scaffold(...) { ... }
+val aboutSlide = remember { Animatable(if (showAbout) 1f else 0f) }
+LaunchedEffect(showAbout) { aboutSlide.animateTo(if (showAbout) 1f else 0f, tween(SLIDE_DURATION_MS)) }
+Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().graphicsLayer { translationX = -aboutSlide.value * size.width }) {
+        Scaffold(...) { ... }          // 常驻，状态不丢
+    }
+    if (aboutSlide.value > 0f) {        // 完全滑出后就不再组合关于页（它没有要保留的状态）
+        Box(Modifier.fillMaxSize().graphicsLayer { translationX = (1f - aboutSlide.value) * size.width }) {
+            AboutScreen(onBack = { showAbout = false })
+        }
     }
 }
 ```
 
-同理，**不要**为了加转场动画改用 `AnimatedContent` / `AnimatedVisibility` ——
-过渡期间两页会同时存在，一样互相透。
+两层在 x 方向**始终相邻、不重叠**，所以既有联动动效又不会互相透字（见上一条）。
+
+### ❌ 不要给「同一时段的多门课」发同一条通知
+
+`ReminderScheduler` 早期写法是把课名拼成 `"A / B"`，再对每门课各排一条闹钟 ——
+闹钟是两条，但**两条带同一个标题**；而通知 id 是 `(标题+时间).hashCode()`，
+于是第二条把第一条**覆盖**掉，用户只看到一条挤着两门课的通知。
+
+两处都要改，缺一不可：
+1. 每条闹钟只带**自己那门课**的课名/地点/教师（`title = course.name`）；
+2. 通知 id 用排程时的 `requestCode`（里面已含 `courseIndex`），
+   通过 `EXTRA_NOTIFY_ID` 传给接收器。
+
+> 验证方法（接收器是 `exported=false`，普通广播进不去）：
+> 临时把 manifest 改成 `exported="true"` → 构建安装 →
+> `adb shell am broadcast -a com.juwp.schedule.ACTION_CLASS_REMINDER -n <pkg>/.reminder.ClassReminderReceiver --es extra_title X --ei extra_notify_id 11111`
+> → `dumpsys notification --noredact` 里应出现两条 id 不同的记录 →
+> **改回 `exported="false"` 并重新构建**。
+> ⚠️ 广播里的值不要带括号：`adb shell` 走 sh，`(下)` 会被当语法报错。
 
 ### ❌ 不要用 `Select-String` 过滤 gradle 构建输出
 
@@ -385,11 +416,28 @@ grep -rniE "%[0-9A-F]{2}[0-9A-F]{2}%[0-9A-F]{2}" --include=*.md .   # URL 编码
 > 上传 APK。token 只从环境变量 `GH_TOKEN` 读，**不写入任何文件**。
 > ⚠️ 发版前先改 `app/build.gradle.kts` 的 `versionName`/`versionCode`。
 
+### 发布规则（用户 2026-09 定下，别再弄错）
+
+| 场景 | Release 标题 | 勾选项 |
+|---|---|---|
+| **preview / 预览版**（默认，除非用户说「发版」） | 就是版本号，如 `v1.5.3` | 勾 **Pre-release**（GitHub 上标注 non-production ready），**不占 Latest** |
+| **正式发行版**（用户明确说要发） | 同样是版本号 | 才勾 **Set as the latest release** |
+
+脚本 `local/tmp/publish_release.ps1` 已按这套实现：
+`-Tag v1.5.3 -PreRelease` → prerelease=true + make_latest=false；
+不带 `-PreRelease` → make_latest=true。
+
+token 取值顺序：环境变量 `GH_TOKEN` → 仓库根 `tools/.env` 里的 `GH_TOKEN=...`
+（`tools/.env` 已被 .gitignore 排除）。
+> 💡 建议用 **fine-grained token**，只授这一个仓库的 Contents: Read and write，
+> 而不是 classic 的 `repo`（后者能读写你**所有**仓库）。
+
 ### 页面结构（手写导航，没有 Navigation 库）
 
 - 底部三个 tab：今日 / 周课表 / 设置（`MainTab` 枚举 + `AnimatedContent` 滑动切换）
-- **关于**是设置页的二级页面：设置页只留一行入口，点击后 `showAbout = true`，
-  由 `MainScaffold` 用 `if/else` 整块切换（**不是叠加**，原因见第三节）。
+- **关于**是设置页的二级页面：设置页只留一行入口，点击后 `showAbout = true`。
+  切换由 `MainScaffold` 里**两个常驻图层做水平平移**（不是 `AnimatedContent`、
+  也不是叠加），原因见第三节那两条 ❌。
   返回靠 `AboutScreen` 内部的 `BackHandler`。
 - 版本号显示一律取 `BuildConfig.VERSION_NAME`，**不要再手写字符串**
   （曾经在设置页写死 `v1.5.0`，发新版忘了改就会显示错版本）。

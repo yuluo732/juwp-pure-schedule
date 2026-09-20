@@ -76,7 +76,14 @@ class ClassReminderReceiver : BroadcastReceiver() {
             .build()
 
         runCatching {
-            NotificationManagerCompat.from(context).notify(notificationId(title, time), notification)
+            // ⚠️ 通知 id 优先用排程时给的 requestCode：同一时段并存两门课时，
+            //    两条通知的 id 必须不同，否则第二条会**覆盖**第一条，
+            //    用户只看到一条挤着两门课的通知（实测过）。
+            //    取不到时退回按「标题+时间」哈希（老版本排的闹钟兼容用）。
+            val id = intent.getIntExtra(ReminderScheduler.EXTRA_NOTIFY_ID, -1)
+                .takeIf { it >= 0 }
+                ?: notificationId(title, time)
+            NotificationManagerCompat.from(context).notify(id, notification)
         }.onFailure { Log.w(TAG, "发送通知失败", it) }
     }
 

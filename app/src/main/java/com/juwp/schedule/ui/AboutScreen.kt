@@ -3,9 +3,6 @@ package com.juwp.schedule.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,13 +31,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -66,13 +60,9 @@ fun AboutScreen(onBack: () -> Unit) {
     // 系统返回键 / 手势返回：先关本页，而不是直接把 App 退出到桌面
     BackHandler(onBack = onBack)
 
-    // 划入动画：1 = 完全在屏幕右侧之外，0 = 就位。
-    // 用 graphicsLayer 的 translationX（里面能拿到 size.width，不必自己算屏宽）。
-    val progress = remember { Animatable(1f) }
-    LaunchedEffect(Unit) {
-        progress.animateTo(0f, tween(durationMillis = SLIDE_IN_MS, easing = FastOutSlowInEasing))
-    }
-
+    // ⚠️ 本页**不做**自己的滑入动画：
+    //    推入/推出的动效由 MainActivity 的 AnimatedContent 统一负责
+    //    （那样设置页会一起向左推出、返回时反向推回）。这里再动一次就是双重动画。
     Scaffold(
         // ⚠️ 透明容器 + 显式 contentColor：透明会让 contentColorFor 匹配失败、回退成黑字
         containerColor = Color.Transparent,
@@ -83,8 +73,7 @@ fun AboutScreen(onBack: () -> Unit) {
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .graphicsLayer { translationX = progress.value * size.width },
+                .padding(padding),
         ) {
             AboutHeader(onBack = onBack)
 
@@ -318,9 +307,6 @@ private fun openUrl(context: android.content.Context, url: String) {
 
 /** 仓库地址（仓库已从 pure-schedule 改名为 juwp-pure-schedule） */
 private const val REPO_URL = "https://github.com/yuluo732/juwp-pure-schedule"
-
-/** 划入动画时长，与底部导航切页的 220ms 保持一致 */
-private const val SLIDE_IN_MS = 220
 
 /** 应用图标白底方块的边长 */
 private val APP_ICON_TILE = 56.dp
