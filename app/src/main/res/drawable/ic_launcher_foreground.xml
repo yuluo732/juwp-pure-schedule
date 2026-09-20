@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    自适应图标前景：白色背景上左上深蓝渐变圆角块 + 右下浅蓝渐变圆角块，
+    与用户提供的 SVG 设计稿一致（deepseek_svg_20260918_092ac3.svg）。
+    SVG 里的柔和投影（10% 蓝）在图标尺寸下不可见，未迁移。
+    108dp 视口，图形缩放在中心 66dp 安全区内（角到圆心 ≈31 < 33），圆形遮罩不会切到内容。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 左上深蓝渐变块（原图 256..512 / 1024，rx=48，等比缩放并内收至安全区） -->
+    <path android:pathData="M36,32 H50 A4,4 0 0 1 54,36 V50 A4,4 0 0 1 50,54 H36 A4,4 0 0 1 32,50 V36 A4,4 0 0 1 36,32 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="32" android:startY="32"
+                android:endX="54" android:endY="54"
+                android:startColor="#FF6B9CFF"
+                android:endColor="#FF4F7CFF" />
+        </aapt:attr>
+    </path>
+    <!-- 右下浅蓝渐变块（原图 512..768 / 1024，渐变方向从右下到左上） -->
+    <path android:pathData="M58,54 H72 A4,4 0 0 1 76,58 V72 A4,4 0 0 1 72,76 H58 A4,4 0 0 1 54,72 V58 A4,4 0 0 1 58,54 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="76" android:startY="76"
+                android:endX="54" android:endY="54"
+                android:startColor="#FFD6E0FF"
+                android:endColor="#FFB7C8FF" />
+        </aapt:attr>
+    </path>
+</vector>

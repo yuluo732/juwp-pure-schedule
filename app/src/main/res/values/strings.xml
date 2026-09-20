@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">极简课程表</string>
+
+    <!-- 登录页 -->
+    <string name="login_title">江西水利电力大学</string>
+    <string name="login_subtitle">统一身份认证登录后自动获取课表</string>
+    <string name="login_student_id">学号</string>
+    <string name="login_password">密码</string>
+    <string name="login_button">登录并同步课表</string>
+    <string name="login_remember">记住密码</string>
+    <string name="login_hint">账号仅保存在本机，用于登录学校教务系统</string>
+    <string name="login_privacy">凭据以明文保存在应用私有目录，不会上传到任何第三方服务器</string>
+
+    <!-- 课表页 -->
+    <string name="schedule_title">我的课表</string>
+    <string name="schedule_refresh">刷新</string>
+    <string name="schedule_settings">设置</string>
+    <string name="schedule_current_week">第 %1$d 周</string>
+    <string name="schedule_this_week">本周</string>
+    <string name="schedule_back_today">回到本周</string>
+    <string name="schedule_offline">离线缓存 · %1$s</string>
+    <string name="schedule_no_course">本周无课</string>
+    <string name="schedule_empty">课表为空</string>
+    <string name="schedule_empty_hint">该学期可能还没有排课，或在设置里切换到其它学期</string>
+
+    <!-- 课程详情 -->
+    <string name="course_teacher">教师</string>
+    <string name="course_room">地点</string>
+    <string name="course_time">时间</string>
+    <string name="course_weeks">周次</string>
+    <string name="course_code">课程编号</string>
+    <string name="course_classes">班级</string>
+    <string name="course_assessment">考核方式</string>
+    <string name="course_hours">总学时</string>
+    <string name="course_count">总人数</string>
+    <string name="course_close">关闭</string>
+
+    <!-- 设置页 -->
+    <string name="settings_title">设置</string>
+    <string name="settings_account">账号</string>
+    <string name="settings_term">学期</string>
+    <string name="settings_term_start">开学第一周周一</string>
+    <string name="settings_term_start_hint">用于计算当前是第几周，点选日期即可</string>
+    <string name="settings_current_week">当前周次</string>
+    <string name="settings_current_week_auto">自动（按日期推算）</string>
+    <string name="settings_reminder">上课提醒</string>
+    <string name="settings_reminder_enable">开启上课提醒</string>
+    <string name="settings_reminder_lead">提前提醒</string>
+    <string name="settings_reminder_lead_value">%1$d 分钟</string>
+    <string name="settings_logout">退出登录</string>
+    <string name="settings_clear">清空所有数据</string>
+    <string name="settings_clear_confirm">将删除账号、会话与课表缓存，确定吗？</string>
+    <string name="settings_logout_confirm">退出后需要重新登录才能刷新课表，本地缓存保留。确定退出？</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_version">版本 %1$s</string>
+    <string name="settings_exact_alarm_hint">未授予「精确闹钟」权限，提醒可能有几分钟偏差。点此前往系统设置授权。</string>
+    <string name="settings_notification_hint">未授予通知权限，上课提醒无法弹出。点此授权。</string>
+
+    <!-- 通用 -->
+    <string name="action_confirm">确定</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_retry">重试</string>
+    <string name="action_ok">好</string>
+    <string name="loading">加载中…</string>
+    <string name="syncing">正在同步课表…</string>
+
+    <!-- 提醒通知 -->
+    <string name="reminder_channel_name">上课提醒</string>
+    <string name="reminder_channel_desc">上课前提醒你即将开始的课程</string>
+    <string name="reminder_title_format">上课提醒：%1$s</string>
+
+    <!-- 错误 -->
+    <string name="error_empty_account">请输入学号</string>
+    <string name="error_empty_password">请输入密码</string>
+    <string name="error_network">网络连接失败，请检查是否在校园网/VPN 环境</string>
+</resources>

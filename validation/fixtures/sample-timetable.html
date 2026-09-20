@@ -1,0 +1,495 @@
+<!--
+  离线解析器验证用的样例课表 HTML（**合成数据，非真实课表**）。
+
+  为什么要有这个文件：
+    `validation/ParserCheck.kt` 需要一份与教务系统结构一致的「整学期课表」HTML 才能跑。
+    真实课表含个人课表与教师姓名，不适合放进公开仓库，
+    因此这里手工构造一份**结构完全一致、内容为虚构**的样例。
+
+  结构必须与教务系统 `/jsxsd/xskb/xskb_list.do?viweType=0` 的输出一致：
+    thead>tr>th   第一列 = 节次标题，其余 7 列 = 星期一..星期日
+                  当天所在列带 class="qz-currentWeek"（本样例假设今天是星期四）
+    tbody>tr      每行 = 一个节次；第一列 <td name="timeTd"> 内含「第X节」+ 时间
+      <td name="kbDataTd" rowspan="N">   每个节次行恰好 7 个格子（周一..周日）
+        空格子：带 qz-hasCourse 但**不含** <ul name="kbdataUl"> 下的 <li>
+        有课：<ul name="kbdataUl" kbdataSize="N"> 下每个 <li> = 一条课程安排
+              <span class="qz-hasCourse-abbrinfo">老师:X;时间:N周[M-N节];地点:Y</span>
+              <span name="kchSpan">;课程编号:Z</span>
+              <span name="dealeSpan">班级:…;总人数:…;考核方式:…;总学时:…</span>
+
+  ⚠️ 陷阱 1：td 上的 `qz-hasCourse` class **不代表有课**，空格子也带这个 class。
+     解析器必须以 `ul[name=kbdataUl]` 下 `li` 的数量为准。本样例刻意保留
+     「空格子也带 qz-hasCourse」的写法，守住这条回归。
+
+  ⚠️ 陷阱 2（本样例的编排原则）：**任意一格在任意一周至多只有一门课**。
+     一格出现多条 li，只允许因为它们的**周次互不重叠**。
+     这正是「一格多课 = 不同周次，不是并课」这条铁律的回归样本。
+
+  ⚠️ 陷阱 3：**被 rowspan 跨越的那些行会少一个 td，这是正确且必须的**。
+     HTML 里 rowspan 跨行时，被跨越的行**不会重复给出那个 td**。
+     本样例第 5 行（第九十节）只有 6 个 td，因为周一那一列被上一行的 rowspan="2" 占用。
+     所以解析器必须做**列号追踪**（跳过被占用的列），而不是简单地「第 N 个 td = 星期 N」——
+     否则该行所有课程会被画到错的那一天（实测过：周二 → 周一、周日 → 周六）。
+     本样例刻意保留这个形态，并有 3 项断言守住它（见 ParserCheck.kt「列偏移回归」）。
+
+  覆盖的用例：
+    1. 一格多课（周次互不重叠）：周一 / 周二 / 周四 / 周五 的第 1-2 节
+    2. 同一门课换教室 → 拆成 4 条独立记录（《国际结算》）
+    3. 单双周：`1-16周(单)`、`2,6双周`
+    4. 空括号地点 `()` → 需被清洗，不能渲染出孤立括弧
+    5. 多教师 `示例教师I,示例教师D`
+    6. 连堂课：`大学生国家安全教育`，周次 10、节次 1-4
+-->
+<html>
+<head><title>学生课表</title></head>
+<body>
+<form name="kbForm">
+<!-- 学期下拉：解析器据此产出 availableTerms -->
+<select name="xnxq01id">
+  <option value="">请选择</option>
+  <option value="2024-2025-1" selected>2024-2025-1</option>
+  <option value="2024-2025-2">2024-2025-2</option>
+  <option value="2025-2026-1">2025-2026-1</option>
+  <option value="2025-2026-2">2025-2026-2</option>
+  <option value="2026-2027-1">2026-2027-1</option>
+  <option value="2026-2027-2">2026-2027-2</option>
+</select>
+
+<table class="qz-weeklyTable">
+  <thead>
+    <tr>
+      <th class="qz-weeklyTable-label">节次</th>
+      <th>星期一</th>
+      <th>星期二</th>
+      <th>星期三</th>
+      <th class="qz-currentWeek">星期四</th>
+      <th>星期五</th>
+      <th>星期六</th>
+      <th>星期日</th>
+    </tr>
+  </thead>
+  <tbody>
+
+    <!-- ============ 第 1 行：第一二节 ============ -->
+    <tr>
+      <td name="timeTd">第一二节 08:30~09:55</td>
+
+      <!-- 周一：2 条，周次互不重叠（奇数周 / 偶数周） -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="2">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">国际税收</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师A;时间:1,3,5,7,9,11周[1-2节];地点:教学南大楼(示例楼A104)</span>
+              <span name="kchSpan">;课程编号:DEMO00000001</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:120;考核方式:考查;总学时:12</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-2">
+            <div class="qz-hasCourse-title qz-ellipse">国际商务谈判</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师B;时间:2,4,6,8,10周[1-2节];地点:教学南大楼(示例楼A204)</span>
+              <span name="kchSpan">;课程编号:DEMO00000004</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考查;总学时:32</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <!-- 周二：2 条。样本课程《国际货物运输与保险》在此，含第 1/4 周 -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="2">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">国际货物运输与保险</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师C;时间:1-2,4-9,11周[1-2节];地点:教学北大楼(示例楼B201)</span>
+              <span name="kchSpan">;课程编号:DEMO00000002</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考试;总学时:48</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-2">
+            <div class="qz-hasCourse-title qz-ellipse">国际结算</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师D;时间:3,10周[1-2节];地点:教学北大楼(示例楼B102)</span>
+              <span name="kchSpan">;课程编号:DEMO00000003</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考试;总学时:32</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <!-- 周三：3 条，周次互不重叠 —— 其中 2 条是《国际结算》换教室 -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="3">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">国际结算</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师D;时间:1,5周[1-2节];地点:教学南大楼(示例楼A101)</span>
+              <span name="kchSpan">;课程编号:DEMO00000003</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考试;总学时:32</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-2">
+            <div class="qz-hasCourse-title qz-ellipse">国际结算</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师D;时间:2,6周[1-2节];地点:教学北大楼(示例楼B105)</span>
+              <span name="kchSpan">;课程编号:DEMO00000003</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考试;总学时:32</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-3">
+            <div class="qz-hasCourse-title qz-ellipse">国际投资学</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师R;时间:3-4,7-8周[1-2节];地点:教学北大楼(示例楼B120)</span>
+              <span name="kchSpan">;课程编号:DEMO00000018</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:98;考核方式:考查;总学时:24</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="2">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">国际商务谈判</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师B;时间:1-9,11-12,16周[1-2节];地点:教学北大楼(示例楼B305)</span>
+              <span name="kchSpan">;课程编号:DEMO00000004</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考查;总学时:32</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-2">
+            <div class="qz-hasCourse-title qz-ellipse">国际结算</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师D;时间:13,14周[1-2节];地点:教学北大楼(示例楼B105)</span>
+              <span name="kchSpan">;课程编号:DEMO00000003</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考试;总学时:32</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <!-- 周五：3 条。⚠️ 注意「2,6双周」会被展开成**所有偶数周**（2,4,6,…,16），
+           所以同一格里不能再放任何偶数周的课，否则就是"同周并存"（违反铁律 3）。 -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="3">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">跨境电商实务</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师E;时间:1-16周(单)[1-2节];地点:实训楼(示例楼C204)</span>
+              <span name="kchSpan">;课程编号:DEMO00000005</span>
+              <span name="dealeSpan">班级:示例班级03;总人数:56;考核方式:考查;总学时:32</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-2">
+            <div class="qz-hasCourse-title qz-ellipse">大学体育</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师F;时间:2,4,6周[1-2节];地点:()</span>
+              <span name="kchSpan">;课程编号:DEMO00000011</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:40;考核方式:考查;总学时:32</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-3">
+            <div class="qz-hasCourse-title qz-ellipse">形势与政策</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师G;时间:12,14,16周[1-2节];地点:教学南大楼(示例楼A202)</span>
+              <span name="kchSpan">;课程编号:DEMO00000012</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:120;考核方式:考查;总学时:16</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <!-- 周六：真正的空格子（带 qz-hasCourse 但没有 li）—— 必须被识别为空 -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="2">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">马克思主义基本原理</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:张敏;时间:2,6双周[1-2节];地点:教学南大楼(示例楼A305)</span>
+              <span name="kchSpan">;课程编号:DEMO00000010</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:120;考核方式:考试;总学时:48</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-2">
+            <div class="qz-hasCourse-title qz-ellipse">当代世界经济与政治</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师T;时间:1,3,5,7,9,11周[1-2节];地点:教学南大楼(示例楼A306)</span>
+              <span name="kchSpan">;课程编号:DEMO00000022</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:120;考核方式:考查;总学时:24</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+    </tr>
+
+    <!-- ============ 第 2 行：第三四节 ============ -->
+    <tr>
+      <td name="timeTd">第三四节 10:15~11:40</td>
+
+      <!-- 周一：《数字贸易》含第 1 周 -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="1">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">数字贸易</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师H;时间:1-12周[3-4节];地点:实训楼(示例楼C101)</span>
+              <span name="kchSpan">;课程编号:DEMO00000006</span>
+              <span name="dealeSpan">班级:示例班级03;总人数:56;考核方式:考查;总学时:24</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <!-- 周二：3 条，周次互不重叠 -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="3">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">国际贸易实务</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师J;时间:1-5周[3-4节];地点:教学北大楼(示例楼B110)</span>
+              <span name="kchSpan">;课程编号:DEMO00000015</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考试;总学时:40</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-2">
+            <div class="qz-hasCourse-title qz-ellipse">商务英语听说</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师K;时间:6-10周[3-4节];地点:实训楼(示例楼C202)</span>
+              <span name="kchSpan">;课程编号:DEMO00000016</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:45;考核方式:考查;总学时:24</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-3">
+            <div class="qz-hasCourse-title qz-ellipse">国际物流</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师L;时间:11-16周[3-4节];地点:教学北大楼(示例楼B112)</span>
+              <span name="kchSpan">;课程编号:DEMO00000017</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考查;总学时:24</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <!-- 周五：多教师样本 -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="1">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">大学英语（四）</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师I,示例教师D;时间:1-16周[3-4节];地点:教学南大楼(示例楼A210)</span>
+              <span name="kchSpan">;课程编号:DEMO00000024</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:45;考核方式:考试;总学时:64</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+    </tr>
+
+    <!-- ============ 第 3 行：第五六节 ============ -->
+    <tr>
+      <td name="timeTd">第五六节 14:00~15:25</td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="1">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">国际金融</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师M;时间:1-14周[5-6节];地点:教学北大楼(示例楼B108)</span>
+              <span name="kchSpan">;课程编号:DEMO00000007</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考试;总学时:56</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <!-- 周三：放一门，使「有课的格子数」达到 16（与既有断言的期望值一致） -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="1">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">国际贸易单证实务</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师V;时间:1-16周[5-6节];地点:实训楼(示例楼C203)</span>
+              <span name="kchSpan">;课程编号:DEMO00000019</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:56;考核方式:考查;总学时:32</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <!-- 周四：2 条，周次互不重叠 -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="2">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">商务与经济统计</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师N;时间:1-8周[5-6节];地点:教学北大楼(示例楼B210)</span>
+              <span name="kchSpan">;课程编号:DEMO00000008</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:98;考核方式:考试;总学时:64</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-2">
+            <div class="qz-hasCourse-title qz-ellipse">国际商务函电</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师W;时间:9-16周[5-6节];地点:教学北大楼(示例楼B211)</span>
+              <span name="kchSpan">;课程编号:DEMO00000020</span>
+              <span name="dealeSpan">班级:示例班级01;总人数:98;考核方式:考查;总学时:32</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="1">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">国际贸易函电</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师O;时间:1-6周[5-6节];地点:实训楼(示例楼C301)</span>
+              <span name="kchSpan">;课程编号:DEMO00000009</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考查;总学时:24</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+    </tr>
+
+    <!-- ============ 第 4 行：第七八节 ============ -->
+    <tr>
+      <td name="timeTd">第七八节 15:45~17:10</td>
+
+      <!-- 周一：**连堂课用例** —— rowspan="2"、节次 7-10 跨两行。
+           注意：被跨越的第 5 行（第九十节）必须**跳过周一这一列**，
+           否则每行 td 数就不是 7，解析器会按列号错位。 -->
+      <td name="kbDataTd" rowspan="2" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="2">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">国际市场营销</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师P;时间:1,3,5,7,9,11周[7-10节];地点:教学北大楼(示例楼B402)</span>
+              <span name="kchSpan">;课程编号:DEMO00000013</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考查;总学时:48</span>
+            </p>
+          </li>
+          <li class="courselists-item qz-hasCourse-2">
+            <div class="qz-hasCourse-title qz-ellipse">国际商法</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师Q;时间:2,4,6,8,10,12周[7-10节];地点:教学北大楼(示例楼B403)</span>
+              <span name="kchSpan">;课程编号:DEMO00000014</span>
+              <span name="dealeSpan">班级:示例班级02;总人数:98;考核方式:考试;总学时:32</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+    </tr>
+
+    <!-- ============ 第 5 行：第九十节 ============ -->
+    <tr>
+      <td name="timeTd">第九十节 19:00~20:25</td>
+
+      <!-- 周一这一列被上一行的 rowspan="2" 占用，故本行跳过 -->
+
+      <!-- 周二：补一格，使「有课的格子数」维持 16 -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="1">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">大学生国家安全教育</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师S;时间:10周[9-10节];地点:教学南大楼(示例楼A401)</span>
+              <span name="kchSpan">;课程编号:DEMO00000023</span>
+              <span name="dealeSpan">班级:全校公选;总人数:150;考核方式:考查;总学时:8</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="0"></ul>
+      </td>
+
+      <!-- 周日：放一门晚课，使「有课的格子数」达到 16（与既有断言的期望值一致） -->
+      <td name="kbDataTd" rowspan="1" class="qz-default qz-hasCourse" colSize="1">
+        <ul name="kbdataUl" kbdataSize="1">
+          <li class="courselists-item qz-hasCourse-1">
+            <div class="qz-hasCourse-title qz-ellipse">创新创业基础</div>
+            <p class="qz-hasCourse-detaillists">
+              <span class="qz-hasCourse-abbrinfo">老师:示例教师U;时间:5-8周[9-10节];地点:实训楼(示例楼C101)</span>
+              <span name="kchSpan">;课程编号:DEMO00000021</span>
+              <span name="dealeSpan">班级:全校公选;总人数:80;考核方式:考查;总学时:16</span>
+            </p>
+          </li>
+        </ul>
+      </td>
+    </tr>
+
+  </tbody>
+</table>
+</form>
+</body>
+</html>

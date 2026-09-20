@@ -1,0 +1,233 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "ff6a807f19e4e8d6e360e32029815430",
+    "entities": [
+      {
+        "tableName": "course_arrangement",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `termId` TEXT NOT NULL, `uniqueKey` TEXT NOT NULL, `name` TEXT NOT NULL, `teachers` TEXT NOT NULL, `room` TEXT NOT NULL, `courseCode` TEXT NOT NULL, `classes` TEXT NOT NULL, `studentCount` TEXT NOT NULL, `assessment` TEXT NOT NULL, `totalHours` TEXT NOT NULL, `weeksRaw` TEXT NOT NULL, `weeksCsv` TEXT NOT NULL, `periodRaw` TEXT NOT NULL, `periodsCsv` TEXT NOT NULL, `weekday` INTEGER NOT NULL, `periodRowIndex` INTEGER NOT NULL, `rowSpan` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "termId",
+            "columnName": "termId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uniqueKey",
+            "columnName": "uniqueKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "teachers",
+            "columnName": "teachers",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "room",
+            "columnName": "room",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "courseCode",
+            "columnName": "courseCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "classes",
+            "columnName": "classes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "studentCount",
+            "columnName": "studentCount",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assessment",
+            "columnName": "assessment",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalHours",
+            "columnName": "totalHours",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weeksRaw",
+            "columnName": "weeksRaw",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weeksCsv",
+            "columnName": "weeksCsv",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "periodRaw",
+            "columnName": "periodRaw",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "periodsCsv",
+            "columnName": "periodsCsv",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weekday",
+            "columnName": "weekday",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "periodRowIndex",
+            "columnName": "periodRowIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rowSpan",
+            "columnName": "rowSpan",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_course_arrangement_termId",
+            "unique": false,
+            "columnNames": [
+              "termId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_course_arrangement_termId` ON `${TABLE_NAME}` (`termId`)"
+          },
+          {
+            "name": "index_course_arrangement_uniqueKey_termId",
+            "unique": true,
+            "columnNames": [
+              "uniqueKey",
+              "termId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_course_arrangement_uniqueKey_termId` ON `${TABLE_NAME}` (`uniqueKey`, `termId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "period_info",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`termId` TEXT NOT NULL, `rowIndex` INTEGER NOT NULL, `label` TEXT NOT NULL, `timeRange` TEXT NOT NULL, PRIMARY KEY(`termId`, `rowIndex`))",
+        "fields": [
+          {
+            "fieldPath": "termId",
+            "columnName": "termId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rowIndex",
+            "columnName": "rowIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeRange",
+            "columnName": "timeRange",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "termId",
+            "rowIndex"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "term_meta",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`termId` TEXT NOT NULL, `termName` TEXT NOT NULL, `isSelected` INTEGER NOT NULL, `fetchedAt` INTEGER NOT NULL, PRIMARY KEY(`termId`))",
+        "fields": [
+          {
+            "fieldPath": "termId",
+            "columnName": "termId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "termName",
+            "columnName": "termName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isSelected",
+            "columnName": "isSelected",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "termId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ff6a807f19e4e8d6e360e32029815430')"
+    ]
+  }
+}
