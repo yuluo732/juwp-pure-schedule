@@ -2,6 +2,7 @@ package com.juwp.schedule
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Bundle
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -69,6 +72,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -83,6 +87,7 @@ import com.juwp.schedule.ui.LoginScreen
 import com.juwp.schedule.ui.ScheduleScreen
 import com.juwp.schedule.ui.ScheduleUiState
 import com.juwp.schedule.ui.ScheduleViewModel
+import com.juwp.schedule.R
 import com.juwp.schedule.ui.scheduleViewModelFactory
 import com.juwp.schedule.ui.SettingsScreen
 import com.juwp.schedule.ui.TimetablePillInfo
@@ -94,9 +99,30 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
+    /**
+     * 「界面已就绪」标志，只给系统闪屏的 keep 条件读。
+     *
+     * ⚠️ 刻意用普通 `Boolean` 而不是 Compose state：keep 条件在**每一帧**由主线程轮询，
+     *    在里面读 Compose state 属于跨线程快照读取，容易出难查的问题。
+     */
+    @Volatile
+    private var uiReady = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Android 12+ SplashScreen 兼容库：接管系统闪屏（背景色已按深浅模式配置），消除白屏
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
+        val splashShownAt = SystemClock.uptimeMillis()
+
+        // ⚠️ 让**系统闪屏**一直留到数据就绪，中间**不要**再插一层 Compose 启动页。
+        //    之前这里没设条件 → 系统闪屏在首帧就撤走，紧接着显示 BootSplash；
+        //    而两者图标不同（系统用 ic_launcher_foreground 蓝色方块、
+        //    BootSplash 用 Icons.Filled.School 学士帽），看起来就是「连着闪了两个启动画面」
+        //    —— 用户反馈的「图一 → 图二」。
+        //    超时是保险：网络卡住时不能把用户永远扣在闪屏上，超时后交给 BootSplash（那里有转圈）。
+        splashScreen.setKeepOnScreenCondition {
+            !uiReady && SystemClock.uptimeMillis() - splashShownAt < SPLASH_MAX_HOLD_MS
+        }
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -115,6 +141,8 @@ class MainActivity : ComponentActivity() {
                 factory = scheduleViewModelFactory(application, splashPrefs)
             )
             val state by viewModel.state.collectAsStateWithLifecycle()
+            // 每帧组合完成后同步一次「就绪」标志，供上面的系统闪屏条件读取
+            SideEffect { uiReady = !state.booting }
             // 主题三态 + 自定义主题色 + 动态颜色都从 state 来，设置页一改全 App 立刻换肤
             PureScheduleTheme(
                 mode = state.themeMode,
@@ -126,6 +154,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/**
+ * 系统闪屏最多停留多久。
+ *
+ * 正常冷启动 bootstrap 只要几百毫秒，用不到这个上限；它的作用只有一个：
+ * 「无缓存 + 需要静默重登」时那次网络请求万一卡住，不能把用户永远扣在静态图标上。
+ *
+ * ⚠️ 取 5 秒而不是 1 秒：早前实测「启动页」那一段大约持续 1.8 秒，
+ *    上限设太小会在正常冷启动里把中间层露出来
+ *    （用户要求「图一 → 图三，不要出现图二」）。
+ *    真触发超时也不会跳画面 —— BootSplash 已改成与系统闪屏同一个图标、同一尺寸，
+ *    只是图标下方多出一个转圈。
+ */
+private const val SPLASH_MAX_HOLD_MS = 5000L
 
 /** 底部导航的三个主页面 */
 private enum class MainTab(val label: String, val icon: ImageVector) {
@@ -536,15 +578,27 @@ private fun rememberDecodedBackground(path: String, version: Int, highRes: Boole
 @Composable
 private fun BootSplash() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Filled.School,
-                contentDescription = null,
-                modifier = Modifier.size(56.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.height(16.dp))
-            CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
-        }
+        // ⚠️ 图标必须和**系统闪屏**用同一个 drawable、同一个尺寸。
+        //    系统闪屏（themes.xml 的 windowSplashScreenAnimatedIcon）画的就是
+        //    ic_launcher_foreground，按 Android 12 规范放在 288dp 画布里居中。
+        //    这里以前用的是 Icons.Filled.School（学士帽），与系统闪屏的蓝色方块不一样，
+        //    于是「系统闪屏 → 这一页」看起来像闪了一下（用户反馈的图一 → 图二）。
+        Image(
+            painter = painterResource(R.drawable.ic_launcher_foreground),
+            contentDescription = null,
+            modifier = Modifier.size(SYSTEM_SPLASH_ICON_SIZE),
+        )
+        // ⚠️ 转圈用 offset 画在图标下方，**不要**改成 Column 居中 ——
+        //    那会把图标整体顶上去，与系统闪屏里图标的位置对不上，又是一次跳动。
+        CircularProgressIndicator(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = 170.dp)
+                .size(24.dp),
+            strokeWidth = 2.5.dp,
+        )
     }
 }
+
+/** Android 12 系统闪屏渲染 windowSplashScreenAnimatedIcon 时用的画布尺寸，与系统保持一致 */
+private val SYSTEM_SPLASH_ICON_SIZE = 288.dp

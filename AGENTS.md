@@ -235,6 +235,40 @@ Box(Modifier.fillMaxSize()) {
 > **改回 `exported="false"` 并重新构建**。
 > ⚠️ 广播里的值不要带括号：`adb shell` 走 sh，`(下)` 会被当语法报错。
 
+### ❌ 不要丢掉 `installSplashScreen()` 的返回值
+
+`MainActivity` 里长期只写了 `installSplashScreen()`、**没接返回值**，也就从没调
+`setKeepOnScreenCondition`。后果是**系统闪屏在首帧就撤走**，而此时 `booting` 还是 true
+→ 立刻显示 Compose 的 `BootSplash` → 数据就绪后才切主界面。
+两层**长得不一样**（系统闪屏用 `ic_launcher_foreground` 蓝色方块，
+`BootSplash` 当时用 `Icons.Filled.School` 学士帽 + 转圈），
+看起来就是「连着闪了两个启动画面」（用户反馈的图一 → 图二）。
+
+```kotlin
+val splashScreen = installSplashScreen()          // ← 必须接住
+val splashShownAt = SystemClock.uptimeMillis()
+// ⚠️ 条件在**每一帧**由主线程轮询 → 只读一个普通 Boolean，别在里面读 Compose state
+splashScreen.setKeepOnScreenCondition {
+    !uiReady && SystemClock.uptimeMillis() - splashShownAt < SPLASH_MAX_HOLD_MS
+}
+...
+setContent { ...; SideEffect { uiReady = !state.booting } }
+```
+
+两个数值别再凭感觉调：
+
+- **超时 5 秒**：早前实测「启动页」那一段约 **1.8 秒**，上限设 1 秒反而会把中间层露出来。
+  它只为「无缓存 + 静默重登」时网络卡住兜底。
+- **`BootSplash` 的图标尺寸 288dp**：Android 12 渲染 `windowSplashScreenAnimatedIcon`
+  用的就是这个画布（`ic_launcher_foreground` 是 108dp 视口、内容只占 44/108，
+  所以 288dp 画布下可见内容约 115dp，与截图吻合）。
+  转圈要用 `offset` 画在图标**下方**，**不要**塞进 `Column` 居中 —— 那会把图标顶上去。
+
+> 验证手法：`adb shell screenrecord` 录冷启动 → `ffmpeg -vf fps=20` 抽帧 →
+> 逐帧判定「头部卡片是否存在 / 图标下方有没有转圈」。
+> 单张 `screencap` 要 300ms+，抓不到 600ms 的闪屏过程。
+> 实测两次冷启动均为「系统闪屏 → 主界面」，全程无转圈帧。
+
 ### ❌ 不要用 `Select-String` 过滤 gradle 构建输出
 
 `gradle.bat` 的 stdout/stderr 在 PowerShell 里会交错，过滤后**可能看不到 `BUILD SUCCESSFUL`**，
@@ -410,7 +444,7 @@ grep -rniE "%[0-9A-F]{2}[0-9A-F]{2}%[0-9A-F]{2}" --include=*.md .   # URL 编码
 
 ## 七、当前状态与待办
 
-**当前版本**：v1.5.3（versionCode 35，**正式发行版，已发布到 GitHub Releases**）。解析器 49 项断言全绿。
+**当前版本**：v1.5.4（versionCode 36，**正式发行版，已发布到 GitHub Releases**）。解析器 49 项断言全绿。
 
 > 发布流程（`local/tmp/publish_release.ps1`）：建 tag → 调 GitHub API 建 Release →
 > 上传 APK。token 只从环境变量 `GH_TOKEN` 读，**不写入任何文件**。
