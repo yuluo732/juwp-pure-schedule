@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -41,9 +42,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.juwp.schedule.data.model.CourseArrangement
 import com.juwp.schedule.data.model.SemesterSchedule
 import com.juwp.schedule.domain.WeekCalculator
@@ -55,34 +58,47 @@ import java.time.LocalDate
 
 /** 今日页的一节课展示块 */
 private data class TodayBlock(
-    val course: CourseArrangement,
+    /**
+     * 这个时段今天**全部**的课程安排。
+     *
+     * ⚠️ 实测：同一时段真的会并存多门课 —— 用户重修了「高等数学B(下)」，
+     * 与主课时间冲突（`2025-2026-2` 周一第一二节：高等数学B(下) + 马克思主义基本原理）。
+     * 所以这里必须保留整个列表，不能只留第一条，否则今日页会**静默吞掉一门课**
+     * （学生按今日页去上课就会漏掉重修课）。
+     */
+    val courses: List<CourseArrangement>,
     val periodRowIndex: Int,
     val startTime: String,
     val endTime: String,
     val periodLabel: String,
-)
+) {
+    /** 卡片上显示的那一门（与周课表一致：只画第一门，其余用「+N」角标提示） */
+    val course: CourseArrangement get() = courses.first()
+}
 
 /**
  * 从整学期课表里取出「本周今天」的课。
  *
- * 注意铁律 3：一个格子里的多门课只是周次不同，按「当前周」过滤后每格最多 1 门，
- * 所以这里每个节次行只取一条安排，天然不会出现并课。
+ * ⚠️ 早期这里依赖「一个格子按周过滤后最多 1 门课」的假设，直接 `cellsInSlot.first()`，
+ * 另一门冲突课被丢掉。该假设已被实测推翻（见 [TodayBlock.courses]），
+ * 现在按节次分组后**保留整组**。
  */
 private fun buildTodayBlocks(
     schedule: SemesterSchedule?,
     week: Int,
     weekday: Int,
+    ownGrade: String? = null,
 ): List<TodayBlock> {
     if (schedule == null) return emptyList()
     return schedule.cells
         .filter { it.weekday == weekday && week in it.course.weeks }
         .groupBy { it.periodRowIndex }
         .map { (rowIndex, cellsInSlot) ->
-            val cell = cellsInSlot.first()
             val period = schedule.periods.getOrNull(rowIndex)
             val times = period?.timeRange?.split('~', '-', '—')?.map { it.trim() }.orEmpty()
             TodayBlock(
-                course = cell.course,
+                // 本级次的课排前面（重修课挂在别的级次下，见 preferOwnGrade）
+                courses = preferOwnGrade(cellsInSlot.map { it.course }, ownGrade),
                 periodRowIndex = rowIndex,
                 startTime = times.getOrNull(0) ?: "",
                 endTime = times.getOrNull(1) ?: "",
@@ -104,10 +120,13 @@ fun TodayScreen(
     // LocalDate.now() 一起算），跨零点由 ViewModel 的定时器与前台跨天检测统一刷新，
     // 不再各自取时间，杜绝「日期变了星期没变」
     val today = state.today
-    val blocks = remember(state.schedule, state.currentWeek, state.todayWeekday, state.today) {
-        buildTodayBlocks(state.schedule, state.currentWeek, state.todayWeekday)
+    // 本级次前缀（学号前 4 位 → 如 "24"）：同一时段有重修课时，正课排前面
+    val ownGrade = remember(state.studentId) { ownGradeOf(state.studentId) }
+    val blocks = remember(state.schedule, state.currentWeek, state.todayWeekday, state.today, ownGrade) {
+        buildTodayBlocks(state.schedule, state.currentWeek, state.todayWeekday, ownGrade)
     }
-    var selectedCourse by remember { mutableStateOf<CourseArrangement?>(null) }
+    // 点开的那个时段里的课程：通常 1 门，冲突时会有多门
+    var selectedCourses by remember { mutableStateOf<List<CourseArrangement>>(emptyList()) }
 
     Column(
         Modifier
@@ -159,7 +178,7 @@ fun TodayScreen(
 
             else -> {
                 blocks.forEach { block ->
-                    TodayCourseCard(block = block, onClick = { selectedCourse = block.course })
+                    TodayCourseCard(block = block, onClick = { selectedCourses = block.courses })
                     Spacer(Modifier.height(10.dp))
                 }
             }
@@ -168,8 +187,8 @@ fun TodayScreen(
         Spacer(Modifier.height(24.dp))
     }
 
-    selectedCourse?.let { course ->
-        CourseDetailSheet(course = course, onDismiss = { selectedCourse = null })
+    if (selectedCourses.isNotEmpty()) {
+        CourseDetailSheet(courses = selectedCourses, onDismiss = { selectedCourses = emptyList() })
     }
 }
 
@@ -257,6 +276,8 @@ private fun TodayCourseCard(block: TodayBlock, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick),
     ) {
+        // 外层 Box 只为了让「+N」角标能贴在卡片右上角（Surface 的 content 不是 BoxScope）
+        Box(Modifier.fillMaxWidth()) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -298,6 +319,9 @@ private fun TodayCourseCard(block: TodayBlock, onClick: () -> Unit) {
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                // 同时间段还有别的课（重修课与主课冲突）时，只在卡片**右上角**放一个
+                // 正圆「+N」角标，不在卡片正文里插任何提示文字（用户明确要求）。
+                // 课程名之后直接是教师/地点，信息密度不变。
                 Spacer(Modifier.height(3.dp))
                 InfoLine(
                     icon = { Icon(Icons.Filled.Person, null, Modifier.size(13.dp), MaterialTheme.colorScheme.onSurfaceVariant) },
@@ -328,6 +352,34 @@ private fun TodayCourseCard(block: TodayBlock, onClick: () -> Unit) {
                     )
                 }
             }
+        }
+
+        // 同时段还有别的课时的「+N」角标：贴卡片右上角、**正圆**（用户明确要求不要椭圆）。
+        // size 写死，不随文字宽度变化。
+        val hidden = block.courses.size - 1
+        if (hidden > 0) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 8.dp, end = 10.dp)
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(courseColor.copy(alpha = if (isDark) 0.30f else 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "+$hidden",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 9.sp,
+                        lineHeight = 9.sp,
+                        platformStyle = PlatformTextStyle(includeFontPadding = false),
+                    ),
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) courseColor.lighten(0.3f) else courseColor,
+                    maxLines = 1,
+                )
+            }
+        }
         }
     }
 }

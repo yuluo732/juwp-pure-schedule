@@ -176,7 +176,8 @@ private fun ScheduleContent(
     )
     val scope = rememberCoroutineScope()
     val pullState = rememberPullToRefreshState()
-    var selectedCourse by remember { mutableStateOf<CourseArrangement?>(null) }
+    // 点开的那个格子里的课程：单课时只有 1 门，同周并存多门课时会有多门
+    var selectedCourses by remember { mutableStateOf<List<CourseArrangement>>(emptyList()) }
     var showWeekPicker by remember { mutableStateOf(false) }
     val displayedWeek = pagerState.currentPage + 1
 
@@ -285,7 +286,13 @@ private fun ScheduleContent(
             // 不再按可视高度均分 —— 否则信息多的格子必被省略号截断。
             // 7 列均分剩余宽度，再减去卡片内边距(4×2)与格子间距(1×2)
             val chipTextWidth = ((maxWidth - TIME_COLUMN_WIDTH) / 7 - 10.dp).coerceAtLeast(24.dp)
-            val rowHeights = rememberRowHeights(schedule = schedule, textWidth = chipTextWidth)
+            // 本级次前缀（学号前 4 位 → 如 "24"）：一格多课时用它把正课排到重修课前面
+            val ownGrade = remember(state.studentId) { ownGradeOf(state.studentId) }
+            val rowHeights = rememberRowHeights(
+                schedule = schedule,
+                textWidth = chipTextWidth,
+                ownGrade = ownGrade,
+            )
             // 固定节次列与每一页网格共享同一个垂直滚动状态 → 上下滚动完全同步
             val vScroll = rememberScrollState()
 
@@ -319,10 +326,11 @@ private fun ScheduleContent(
                                 schedule = schedule,
                                 week = page + 1,
                                 todayWeekday = state.todayWeekday,
-                                onCourseClick = { selectedCourse = it },
+                                onCourseClick = { selectedCourses = it },
                                 rowHeights = rowHeights,
                                 // 设置页「课程卡片透明化」开关
                                 translucentCards = state.cardTransparent,
+                                ownGrade = ownGrade,
                             )
                         }
                     }
@@ -331,8 +339,8 @@ private fun ScheduleContent(
         }
     }
 
-    selectedCourse?.let { course ->
-        CourseDetailSheet(course = course, onDismiss = { selectedCourse = null })
+    if (selectedCourses.isNotEmpty()) {
+        CourseDetailSheet(courses = selectedCourses, onDismiss = { selectedCourses = emptyList() })
     }
 
     // ---------------- 周次快速跳转弹窗（点顶部「第 X 周」弹出） ----------------
