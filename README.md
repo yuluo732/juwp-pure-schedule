@@ -93,7 +93,7 @@
 ### 自己编译
 
 ```bash
-git clone https://github.com/<your-name>/pure-schedule.git
+git clone https://github.com/yuluo732/pure-schedule.git
 cd pure-schedule
 ./gradlew assembleDebug          # Windows: gradlew.bat assembleDebug
 # 产物：app/build/outputs/apk/debug/app-debug.apk
@@ -101,6 +101,32 @@ cd pure-schedule
 
 需要 **JDK 17+** 与 **Android SDK（platform 36）**。
 Gradle 版本由 wrapper 锁定（9.3.0），不需要手动装。
+
+#### 打正式发布包（可选）
+
+`assembleRelease` 开了 R8 混淆与资源压缩，产物只有 debug 包的约 **1/9**（1.9 MB vs 17.7 MB）。
+但对外发布需要**你自己的签名密钥**：
+
+```bash
+# 1) 生成密钥（一条命令，密码自己设，务必记住并备份）
+keytool -genkeypair -v -keystore my-release.jks -alias my-alias \
+  -keyalg RSA -keysize 2048 -validity 10000
+
+# 2) 配置（模板见 keystore.properties.example）
+cp keystore.properties.example keystore.properties
+# 编辑 keystore.properties 填入上面设的密码
+
+# 3) 打包
+./gradlew assembleRelease
+# 产物：app/build/outputs/apk/release/app-release.apk
+```
+
+> `keystore.properties` 与 `*.jks` **已被 `.gitignore` 排除**，不会误传。
+> 如果**没有**配密钥，`assembleRelease` 依然能构建成功，但会退回 **debug 签名** ——
+> 那样的包不适合发布（换机器后签名会变，用户无法覆盖升级）。
+
+⚠️ **签名密钥务必多处备份。** 密钥丢失后无法为已安装的版本发布覆盖升级包，
+用户只能卸载重装（本机课表缓存与设置会一起丢失）。
 
 ### 工作原理（简述）
 
