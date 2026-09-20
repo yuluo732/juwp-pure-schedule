@@ -410,7 +410,7 @@ grep -rniE "%[0-9A-F]{2}[0-9A-F]{2}%[0-9A-F]{2}" --include=*.md .   # URL 编码
 
 ## 七、当前状态与待办
 
-**当前版本**：v1.5.2（versionCode 34，**已发布到 GitHub Releases**）。解析器 49 项断言全绿。
+**当前版本**：v1.5.3（versionCode 35，**正式发行版，已发布到 GitHub Releases**）。解析器 49 项断言全绿。
 
 > 发布流程（`local/tmp/publish_release.ps1`）：建 tag → 调 GitHub API 建 Release →
 > 上传 APK。token 只从环境变量 `GH_TOKEN` 读，**不写入任何文件**。
