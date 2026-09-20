@@ -1,0 +1,85 @@
+# ══════════════════════════════════════════════════════════════════
+#  Pure Schedule / 极简课程表 —— Git 忽略规则
+# ══════════════════════════════════════════════════════════════════
+
+# ---------------------------------------------------------------- 凭据
+# ⚠️ 最重要的一段：任何含真实学号/密码的文件都不能进仓库
+tools/.env
+.env
+*.env
+local.properties
+
+# ---------------------------------------------------------------- 构建产物
+*.iml
+.gradle/
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+output.json
+
+# ---------------------------------------------------------------- IDE
+.idea/
+*.hprof
+.kotlin/
+
+# ---------------------------------------------------------------- 调试 / 验证残留
+# tools/out 是开发期的下水道：抓下来的教务系统 HTML、UI dump、
+# 手机截图、DataStore 备份（含密码明文）都在这里，一律不入库。
+tools/out/
+# run-parser-check.ps1 用 kotlinc 编译出的 .class，属产物不入库
+validation/out/
+
+# ⚠️ 下面这些「调试产物」按扩展名全局排除，不限定目录：
+# 本项目用 `adb screencap` + `adb pull` 做真机验证，截图/UI dump/拉下来的数据库
+# 常常顺手落在仓库任意位置（根目录、validation/、tools/ 都可能），
+# 早先只写了 `validation/*.png` 这种带目录的规则，导致放在别处就会被误提交。
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.xml.dump
+ui*.xml
+s?.xml
+*.bin
+*.db
+*.db-wal
+*.db-shm
+*.ab
+*.log
+
+# 但文档里可能真的要放截图（如 README 配图）—— 放在 docs/images/ 下可豁免
+!docs/images/
+!docs/images/**
+
+# 校验脚本是源码，必须保留
+!validation/ParserCheck.kt
+!validation/fixtures/**
+
+# UI dump / 抓包残留
+ui*.xml
+s?.xml
+*.hprof
+
+# ---------------------------------------------------------------- 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------- 其它
+*.jks
+*.keystore
+keystore.properties
+secrets.properties
+google-services.json
+
+# 开发过程记录（本地保留，不上传）
+.workbuddy/
+Minimal-schedule/

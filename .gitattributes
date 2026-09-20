@@ -1,0 +1,53 @@
+# 换行符规范
+#
+# 为什么需要这个文件：Windows 上 git 默认会把文本文件的 LF 转成 CRLF（core.autocrlf）。
+# 而 `gradlew` 是 **Unix shell 脚本**，它的 shebang（`#!/bin/sh`）**必须是 LF** ——
+# 转成 CRLF 后别人在 Linux/macOS 上执行会直接报：
+#     ./gradlew: /bin/sh^M: bad interpreter: No such file or directory
+# 这类问题在有 Windows 开发者的开源项目里非常常见，所以显式锁死。
+
+# 默认：交给 git 自动判断，并按仓库约定归一化为 LF 存储
+* text=auto
+
+# Unix shell 脚本：必须 LF（只靠 chmod +x 不够，换行符也得对）
+*.sh   text eol=lf
+gradlew text eol=lf
+# 注意：gradlew.bat 是给 Windows cmd 用的，**不能**强行指定 eol=lf，
+# 让它走 `* text=auto`（Windows 检出为 CRLF、仓库内存 LF）即可。
+
+# Windows 批处理：CRLF
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# 源码与文档：统一 LF，避免跨平台 diff 噪音
+*.kt    text eol=lf
+*.kts   text eol=lf
+*.java  text eol=lf
+*.md    text eol=lf
+*.xml   text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.pro   text eol=lf
+*.mjs   text eol=lf
+*.js    text eol=lf
+*.py    text eol=lf
+*.ps1   text eol=crlf
+*.properties text eol=lf
+*.html  text eol=lf
+
+# 二进制：永不转换，也不要尝试 merge
+*.jar   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary
+*.apk   binary
+*.aab   binary
+*.keystore binary
+*.jks   binary
+
+# 语言统计：把文档与生成物排除，避免 GitHub 语言面板把 Kotlin 项目标成 HTML/Text
+docs/**      linguist-documentation
+*.md         linguist-documentation
+tools/**     linguist-vendored

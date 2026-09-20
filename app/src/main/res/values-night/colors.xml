@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色模式：闪屏 / 窗口底色 -->
+    <color name="splash_background">#FF121316</color>
+    <color name="window_background">#FF121316</color>
+</resources>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  教务系统使用 HTTP 明文（8080 与 80 端口），Android 9+ 默认禁止明文流量。
+  这里只针对必需的两个域名放行，其余域名仍强制 HTTPS。
+-->
+<network-security-config>
+    <!-- 默认：禁止明文 -->
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- 教务系统（jsxsd 主站，端口 80 / 8080） -->
+        <domain includeSubdomains="false">jiaowu.juwp.edu.cn</domain>
+        <!-- 一站式服务大厅（门户，HTTP） -->
+        <domain includeSubdomains="false">portal.juwp.edu.cn</domain>
+    </domain-config>
+
+    <!--
+  统一身份认证 CAS 使用 9443 端口 + 自签/机构证书。
+  trust-anchors 里同时信任系统证书与用户证书，避免个别设备报证书错误。
+-->
+    <domain-config>
+        <domain includeSubdomains="false">eapp2.juwp.edu.cn</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+        冷启动专用闪屏主题：
+        - windowSplashScreenBackground 引用 @color/splash_background（values / values-night 各有一份），
+          冷启动第一帧的背景色立刻跟随系统深浅模式，彻底消除「深色模式下的刺眼白屏」
+        - 图标用应用自适应图标前景，与桌面图标一致
+        - postSplashScreenTheme 在 installSplashScreen() 后切回正式主题
+    -->
+    <style name="Theme.PureSchedule.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenAnimationDuration">200</item>
+        <item name="postSplashScreenTheme">@style/Theme.PureSchedule</item>
+    </style>
+
+    <!--
+        正式主题：windowBackground 用带 values-night 变体的颜色资源，
+        资源系统自动按深浅模式选色，Compose 首帧之前窗口底色就是正确模式
+        （之前固定 Light 父主题 + 浅色 windowBackground 是白屏的根源）
+    -->
+    <style name="Theme.PureSchedule" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+</resources>
