@@ -2,7 +2,8 @@
 
 # Pure Schedule
 
-**A minimal class-schedule app · JUWP only · Android only**
+**Pure Schedule, JUWP only, Android only**
+**极简课程表，仅适配江西水利电力大学，仅安卓**
 
 [![Platform](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-3DDC84?logo=android&logoColor=white)](#requirements)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
