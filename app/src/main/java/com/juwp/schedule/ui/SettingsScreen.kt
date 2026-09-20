@@ -80,6 +80,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.juwp.schedule.BuildConfig
 import com.juwp.schedule.ui.theme.AppThemeMode
 import com.juwp.schedule.ui.theme.ThemeColorPresets
 import java.time.Instant
@@ -197,6 +198,8 @@ fun SettingsScreen(
     onClearBackground: () -> Unit,
     onLogout: () -> Unit,
     onClearAll: () -> Unit,
+    /** 打开「关于」二级页面（说明、版本号、GitHub 仓库入口都在那一页） */
+    onOpenAbout: () -> Unit,
 ) {
     val context = LocalContext.current
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -786,25 +789,39 @@ fun SettingsScreen(
             }
 
             // ------------------------------------------------ 关于
+            // 说明文字、版本号、GitHub 仓库入口都移到二级页面 AboutScreen 了：
+            // 这一屏本来就很长（账号/学期/开学日期/课表更新/个性化/上课提醒/账号与数据），
+            // 说明挤在末尾既不好读也不好找，所以这里只留一行入口。
             SectionCard("关于") {
-                Text(
-                    "极简课程表 v1.5.0",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "数据来自学校教务系统，登录走学校统一身份认证。" +
-                        "本 App 只把账号保存在你自己手机里，不会上传到任何其他地方。",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "教务系统公网可直接访问，校外、假期都能正常同步；开着代理软件时可能连不上。",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onOpenAbout)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "关于极简课程表",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            // 版本号取自 BuildConfig，不再手写字符串 —— 之前写死 v1.5.0，
+                            // 发 v1.5.1 时忘了改就会显示错版本
+                            "v${BuildConfig.VERSION_NAME} · 说明与 GitHub 仓库",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             Spacer(Modifier.height(24.dp))
@@ -1028,8 +1045,12 @@ private fun CompactRadioDot(selected: Boolean) {
     }
 }
 
+/**
+ * 设置页统一的卡片容器（80% 不透明表面色 + 标题 + 可选副标题）。
+ * 设为 internal 是为了让 [AboutScreen] 复用同一套视觉，不必复制一份。
+ */
 @Composable
-private fun SectionCard(
+internal fun SectionCard(
     title: String,
     subtitle: String? = null,
     content: @Composable ColumnScope.() -> Unit,

@@ -170,6 +170,32 @@ val shown = courses.firstOrNull() ?: return@Box   // 空格子：什么都不画
 > 每一处都要能指出「为什么这里不可能为空」。本项目其它 `.first()` 都有前置
 > `isEmpty()` 判断或包在 `runCatching` 里，只有这一处漏了。
 
+### ❌ 不要把「透明容器」的页面**叠**在别的页面上
+
+本项目所有页面的容器都是**透明**的（`Scaffold(containerColor = Color.Transparent)`
++ 半透明卡片），为的是露出 `WithBackgroundImage` 铺的全局壁纸。
+代价是：**它们不能互相叠加**。
+
+实测：`AboutScreen` 最初写成
+`Box { Scaffold(主界面) ; AnimatedVisibility { AboutScreen } }`，
+结果设置页的文字从关于页的半透明卡片后面透出来
+（截图里能读到「清空所有数据」「退出登录」），看起来像渲染坏了。
+
+**正确做法是 `if/else` 二选一**，让二级页面底下只剩 `WithBackgroundImage` 那一层：
+
+```kotlin
+) {
+    if (showAbout) {
+        AboutScreen(onBack = { showAbout = false })
+    } else {
+        Scaffold(...) { ... }
+    }
+}
+```
+
+同理，**不要**为了加转场动画改用 `AnimatedContent` / `AnimatedVisibility` ——
+过渡期间两页会同时存在，一样互相透。
+
 ### ❌ 不要用 `Select-String` 过滤 gradle 构建输出
 
 `gradle.bat` 的 stdout/stderr 在 PowerShell 里会交错，过滤后**可能看不到 `BUILD SUCCESSFUL`**，
@@ -345,7 +371,16 @@ grep -rniE "%[0-9A-F]{2}[0-9A-F]{2}%[0-9A-F]{2}" --include=*.md .   # URL 编码
 
 ## 七、当前状态与待办
 
-**当前版本**：v1.5.1（versionCode 32）。解析器 49 项断言全绿。
+**当前版本**：v1.5.2（versionCode 33）。解析器 49 项断言全绿。
+
+### 页面结构（手写导航，没有 Navigation 库）
+
+- 底部三个 tab：今日 / 周课表 / 设置（`MainTab` 枚举 + `AnimatedContent` 滑动切换）
+- **关于**是设置页的二级页面：设置页只留一行入口，点击后 `showAbout = true`，
+  由 `MainScaffold` 用 `if/else` 整块切换（**不是叠加**，原因见第三节）。
+  返回靠 `AboutScreen` 内部的 `BackHandler`。
+- 版本号显示一律取 `BuildConfig.VERSION_NAME`，**不要再手写字符串**
+  （曾经在设置页写死 `v1.5.0`，发新版忘了改就会显示错版本）。
 
 ### 已知待办（按优先级）
 

@@ -76,6 +76,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.juwp.schedule.ui.AboutScreen
 import com.juwp.schedule.ui.LoginScreen
 import com.juwp.schedule.ui.ScheduleScreen
 import com.juwp.schedule.ui.ScheduleUiState
@@ -293,12 +294,23 @@ private fun MainScaffold(
 ) {
     var tabName by rememberSaveable { mutableStateOf(MainTab.Today.name) }
     val tab = MainTab.entries.firstOrNull { it.name == tabName } ?: MainTab.Today
+    // 「关于」二级页面。用手写的布尔量而不是导航库：本项目刻意不引入 Navigation（见 AGENTS.md）。
+    // rememberSaveable：进程被回收再回来时不会莫名丢掉这一页
+    var showAbout by rememberSaveable { mutableStateOf(false) }
 
     WithBackgroundImage(
         path = state.backgroundImagePath,
         version = state.backgroundImageVersion,
         highRes = state.backgroundHd,
     ) {
+        // ⚠️ 关于页与主界面必须 **if/else 二选一**，不能把关于页叠在设置页上面。
+        //    AboutScreen 的容器是透明的（要露出全局壁纸，与其他页面一致），
+        //    叠上去会让设置页的文字从半透明卡片后面透出来 —— 实测截图里能读到
+        //    「清空所有数据」「退出登录」等字样，像渲染坏了。
+        //    二选一之后，关于页底下就只剩 WithBackgroundImage 画的那一层，与其它页完全一致。
+        if (showAbout) {
+            AboutScreen(onBack = { showAbout = false })
+        } else {
         Scaffold(
             containerColor = Color.Transparent,
             // ⚠️ 透明容器会让 contentColorFor 匹配失败、回退到 Compose 默认的黑色文字，
@@ -383,11 +395,13 @@ private fun MainScaffold(
                             onClearBackground = { viewModel.clearBackgroundImage() },
                             onLogout = { viewModel.logout() },
                             onClearAll = { viewModel.clearAll() },
+                            onOpenAbout = { showAbout = true },
                         )
                     }
                 }
             }
         }
+        }   // ← 结束 else（关于页 / 主界面二选一）
     }
 }
 
