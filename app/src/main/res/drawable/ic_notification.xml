@@ -1,15 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 通知小图标必须是纯白剪影（系统会按 alpha 着色） -->
+<!--
+    通知小图标：**当前 app 图标**（两个圆角方块）。
+    此前这里是个时钟图标，跟启动器图标毫无关系（用户要求换成最新的 app 图标）。
+
+    ⚠️ 两个约束：
+      1. 通知小图标必须是**纯白剪影** —— 系统只取 alpha 通道、再按状态栏前景色着色，
+         所以不能带渐变（ic_launcher_foreground 用的是蓝色渐变，直接拿来会变一团）。
+      2. 尺寸要重排：ic_launcher_foreground 是 108dp 视口、图形只占中间 32..76，
+         直接用会让图标在状态栏里显得很小。这里把坐标整体平移 -30、视口收到 48，
+         图形就落在 2..46 —— 在 24dp 里正好四周各留 1dp 安全边距。
+
+    两个方块只共用顶点 (24,24)，所以剪影里仍然是**两块**、不会糊成一团。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24"
+    android:viewportWidth="48"
+    android:viewportHeight="48"
     android:tint="#FFFFFFFF">
+    <!-- 左上块（原 32..54，平移 -30） -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8z" />
+        android:pathData="M6,2 H20 A4,4 0 0 1 24,6 V20 A4,4 0 0 1 20,24 H6 A4,4 0 0 1 2,20 V6 A4,4 0 0 1 6,2 Z" />
+    <!-- 右下块（原 54..76，平移 -30） -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M12.5,7L11,7v6l5.25,3.15 0.75,-1.23 -4.5,-2.67z" />
+        android:pathData="M28,24 H42 A4,4 0 0 1 46,28 V42 A4,4 0 0 1 42,46 H28 A4,4 0 0 1 24,42 V28 A4,4 0 0 1 28,24 Z" />
 </vector>

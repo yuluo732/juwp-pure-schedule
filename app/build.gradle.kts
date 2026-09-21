@@ -32,10 +32,10 @@ android {
         applicationId = "com.juwp.schedule"
         minSdk = 26
         targetSdk = 36
-        // v1.5.4 为**正式发行版**（用户明确要求）
+        // v1.5.5 为**正式发行版**（用户明确要求）
         // 关于页的版本号取自 BuildConfig.VERSION_NAME，改这里就够了，不需要改别处
-        versionCode = 36
-        versionName = "1.5.4"
+        versionCode = 37
+        versionName = "1.5.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

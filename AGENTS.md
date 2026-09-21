@@ -269,6 +269,31 @@ setContent { ...; SideEffect { uiReady = !state.booting } }
 > 单张 `screencap` 要 300ms+，抓不到 600ms 的闪屏过程。
 > 实测两次冷启动均为「系统闪屏 → 主界面」，全程无转圈帧。
 
+### ❌ 不要让「自动选择学期」只在同步时才生效
+
+`settings.autoSelectTerm` 打开时的文案承诺是「**打开 App 自动切到当前学期**」，
+但原实现的推断（`TermMatcher.pickTerm`）**只在 `resolveTermToSync` 里用到**，
+也就是只在**同步时**生效 —— 而同步被「自动更新间隔」节流（默认 6 小时）。
+
+实测复现：09:44 手动切到 `2024-2025-2`，12:30 打开 App 仍停在 `2024-2025-2`，
+而当天应匹配 `2026-2027-1`。用户看到的就是「自动选择学期失效」。
+
+修法：把推断抽成 `ScheduleRepository.resolveAutoTerm()`（同步路径复用），
+并在 `ScheduleViewModel.bootstrap()` **冷启动时就用它**决定加载哪个学期的缓存：
+
+```kotlin
+val autoTermId = runCatching {
+    if (settings.autoSelectTerm.first()) repo.resolveAutoTerm() else null
+}.getOrNull()
+val termId = autoTermId ?: savedTermId
+if (autoTermId != null && autoTermId != savedTermId) {
+    settings.setCurrentTermId(autoTermId)   // 写回 DataStore，让「当前学期」显示与缓存加载一致
+}
+```
+
+⚠️ 必须**写回 DataStore** 而不是只改 UiState：界面上的「当前学期」与缓存加载都由
+`collect(currentTermId)` 驱动，不写回就又制造一处「两个真相源」（见第七节 P2 待办）。
+
 ### ❌ 不要用 `Select-String` 过滤 gradle 构建输出
 
 `gradle.bat` 的 stdout/stderr 在 PowerShell 里会交错，过滤后**可能看不到 `BUILD SUCCESSFUL`**，
@@ -444,7 +469,7 @@ grep -rniE "%[0-9A-F]{2}[0-9A-F]{2}%[0-9A-F]{2}" --include=*.md .   # URL 编码
 
 ## 七、当前状态与待办
 
-**当前版本**：v1.5.4（versionCode 36，**正式发行版，已发布到 GitHub Releases**）。解析器 49 项断言全绿。
+**当前版本**：v1.5.5（versionCode 37，**正式发行版，已发布到 GitHub Releases**）。解析器 49 项断言全绿。
 
 > 发布流程（`local/tmp/publish_release.ps1`）：建 tag → 调 GitHub API 建 Release →
 > 上传 APK。token 只从环境变量 `GH_TOKEN` 读，**不写入任何文件**。

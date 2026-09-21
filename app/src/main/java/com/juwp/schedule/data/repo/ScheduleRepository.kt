@@ -171,6 +171,23 @@ class ScheduleRepository(
         }
 
     /**
+     * 「自动选择学期」按今天日期推断出的学期；未开启或推断不出时返回 null。
+     *
+     * ⚠️ 之所以抽成**公开**方法：**冷启动也要用它**。
+     *    原实现只在「同步时」用推断结果（见 [resolveTermToSync]），
+     *    而同步受「自动更新间隔」节流（默认 6 小时）——
+     *    于是用户手动切到别的学期之后、间隔到期之前，App 会一直停在手动选的那个学期。
+     *    可那个开关的文案承诺的是「打开 App 自动切到当前学期」，
+     *    用户看到的就是「自动选择学期失效了」（实测复现：12:30 打开 App 仍显示 09:44 手选的学期）。
+     */
+    suspend fun resolveAutoTerm(): String? {
+        val known = dao.observeTerms().first().map { it.termId }
+        return TermMatcher.pickTerm(known)?.also {
+            Log.i(TAG, "自动选择学期：今天 ${LocalDate.now()} → $it（候选 ${known.size} 个）")
+        }
+    }
+
+    /**
      * 决定本次同步要抓哪个学期。
      *
      * 优先级：
@@ -184,12 +201,7 @@ class ScheduleRepository(
         if (!explicit.isNullOrBlank()) return explicit
 
         if (settings.autoSelectTerm.first()) {
-            val known = dao.observeTerms().first().map { it.termId }
-            val picked = TermMatcher.pickTerm(known)
-            if (picked != null) {
-                Log.i(TAG, "自动选择学期：今天 ${LocalDate.now()} → $picked（候选 ${known.size} 个）")
-                return picked
-            }
+            resolveAutoTerm()?.let { return it }
         }
         return settings.currentTermId.first().ifBlank { null }
     }

@@ -266,7 +266,24 @@ class ScheduleViewModel(app: Application, initial: SplashPrefs? = null) : Androi
      */
     private suspend fun bootstrap() {
         val loggedInFlag = runCatching { settings.loggedIn.first() }.getOrDefault(false)
-        val termId = runCatching { settings.currentTermId.first() }.getOrDefault("")
+        val savedTermId = runCatching { settings.currentTermId.first() }.getOrDefault("")
+
+        // ⚠️ 开着「自动选择学期」时，**打开 App 就要切到当前学期** ——
+        //    这正是那个开关的文案承诺（「已开启：打开 App 自动切到当前学期」）。
+        //    原实现只在同步时用推断结果，而同步被「自动更新间隔」节流（默认 6 小时），
+        //    于是用户手动切过学期之后、间隔到期之前，App 会一直停在手动选的那个学期 ——
+        //    实测复现：12:30 打开 App，仍显示 09:44 手选的 2024-2025-2，
+        //    而当天应匹配 2026-2027-1。用户反馈的「自动选择学期失效」就是这个。
+        val autoTermId = runCatching {
+            if (settings.autoSelectTerm.first()) repo.resolveAutoTerm() else null
+        }.getOrNull()
+        val termId = autoTermId ?: savedTermId
+        if (autoTermId != null && autoTermId != savedTermId) {
+            // 写回 DataStore 而不是只改 UiState：下面 collect(currentTermId) 就是靠它驱动
+            // 「当前学期」的显示与缓存加载，两个地方必须一致（否则又是一处两个真相源）
+            runCatching { settings.setCurrentTermId(autoTermId) }
+        }
+
         val cached = runCatching { repo.loadFromCache(termId.ifBlank { null }) }.getOrNull()
 
         if (cached != null) {
